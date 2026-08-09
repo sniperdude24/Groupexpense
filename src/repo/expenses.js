@@ -2,6 +2,7 @@ import Dexie from 'dexie';
 import { db } from '../db.js';
 import { newId, now } from '../lib/util.js';
 import { splitsSumToAmount } from '../lib/splits.js';
+import { assertAmountWithinLimit, AmountTooLargeError } from '../lib/limits.js';
 import { SettledTripError, assertTripOpen } from './tripLock.js';
 
 class SplitMismatchError extends Error {
@@ -15,6 +16,9 @@ function assertValidSplits(amountCents, splits) {
   if (!Number.isInteger(amountCents) || amountCents <= 0) {
     throw new Error('amount_cents must be a positive integer');
   }
+  // Checked here rather than only in the form, so an edit is held to the same
+  // ceiling as a create and an import can't carry a bad amount in behind them.
+  assertAmountWithinLimit(amountCents);
   if (!splits.length) throw new Error('An expense must have at least one split');
   for (const s of splits) {
     if (!Number.isInteger(s.share_cents) || s.share_cents < 0) {
@@ -103,4 +107,4 @@ export async function getExpenseWithSplits(expenseId) {
   return { expense, splits };
 }
 
-export { SettledTripError, SplitMismatchError };
+export { SettledTripError, SplitMismatchError, AmountTooLargeError };

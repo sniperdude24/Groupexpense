@@ -1,11 +1,13 @@
 import { db } from '../db.js';
 import { newId, now } from '../lib/util.js';
+import { assertAmountWithinLimit } from '../lib/limits.js';
 import { assertTripOpen } from './tripLock.js';
 
 export async function createSettlement({ groupId, tripId = null, fromPerson, toPerson, amountCents }) {
   if (!Number.isInteger(amountCents) || amountCents <= 0) {
     throw new Error('amount_cents must be a positive integer');
   }
+  assertAmountWithinLimit(amountCents);
   if (fromPerson === toPerson) {
     throw new Error('A settlement must be between two different people');
   }

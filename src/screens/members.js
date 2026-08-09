@@ -1,5 +1,6 @@
 import { getGroup } from '../repo/groups.js';
-import { listMembersOfGroup, addMember, removeMember } from '../repo/memberships.js';
+import { listMembersOfGroup, addMember, removeMember, groupHasRoom } from '../repo/memberships.js';
+import { GroupFullError } from '../lib/limits.js';
 import { listPeople, createPerson } from '../repo/people.js';
 import { listTripsOfGroup } from '../repo/trips.js';
 import { escapeHtml, toast, onActivate } from '../ui/helpers.js';
@@ -92,7 +93,12 @@ export async function render(container, { groupId }) {
 
   container.querySelectorAll('.add-existing').forEach((row) => {
     onActivate(row, async () => {
-      await addMember(groupId, row.dataset.person);
+      try {
+        await addMember(groupId, row.dataset.person);
+      } catch (err) {
+        toast(err.message || 'Could not add that person');
+        return;
+      }
       render(container, { groupId });
     });
   });
@@ -128,6 +134,13 @@ export async function render(container, { groupId }) {
         return;
       }
       const note = overlay.querySelector('#new-note').value.trim();
+      // Capacity is checked before the person is created, not after. Creating
+      // first and letting addMember throw would leave a brand-new person
+      // stranded in the global roster, belonging to no group.
+      if (!(await groupHasRoom(groupId))) {
+        toast(new GroupFullError().message);
+        return;
+      }
       const person = await createPerson({ name, note });
       await addMember(groupId, person.id);
       closeModal();
