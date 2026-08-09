@@ -41,6 +41,7 @@ export async function render(container, { tripId, expenseId }) {
 
   const state = {
     amountCents: existing ? existing.expense.amount_cents : 0,
+    amountStr: existing ? (existing.expense.amount_cents / 100).toFixed(2) : '',
     description: existing ? existing.expense.description : '',
     category: existing ? existing.expense.category || '' : '',
     payerId: existing ? existing.expense.payer_id : people[0]?.id,
@@ -113,7 +114,7 @@ export async function render(container, { tripId, expenseId }) {
         </div>
         <div class="field">
           <label for="f-amount">Amount</label>
-          <input id="f-amount" type="text" inputmode="decimal" value="${state.amountCents ? (state.amountCents / 100).toFixed(2) : ''}" placeholder="0.00" />
+          <input id="f-amount" type="text" inputmode="decimal" value="${escapeHtml(state.amountStr)}" placeholder="0.00" />
         </div>
         <div class="field">
           <label for="f-payer">Paid by</label>
@@ -156,23 +157,36 @@ export async function render(container, { tripId, expenseId }) {
       </div>
     `;
 
-    container.querySelector('#f-description').addEventListener('input', (e) => {
-      state.description = e.target.value;
-      container.querySelector('#save-expense').disabled = !(
+    function updateSplitUI() {
+      const remaining = recompute();
+      container.querySelectorAll('.p-amount').forEach((inp) => {
+        const p = state.participants.find((x) => x.person_id === inp.dataset.person);
+        if (p.included && !p.dirty && document.activeElement !== inp) {
+          inp.value = (p.shareCents / 100).toFixed(2);
+        }
+      });
+      const bar = container.querySelector('.remaining-bar');
+      bar.className = `remaining-bar ${remaining === 0 ? 'balanced' : 'off'}`;
+      bar.querySelector('strong').textContent = formatCents(remaining);
+      const canSave =
         state.amountCents > 0 &&
         state.description.trim() &&
-        recompute() === 0 &&
-        state.participants.some((p) => p.included)
-      );
+        state.payerId &&
+        remaining === 0 &&
+        state.participants.some((p) => p.included);
+      container.querySelector('#save-expense').disabled = !canSave;
+      return remaining;
+    }
+
+    container.querySelector('#f-description').addEventListener('input', (e) => {
+      state.description = e.target.value;
+      updateSplitUI();
     });
 
     container.querySelector('#f-amount').addEventListener('input', (e) => {
-      const cents = parseAmountToCents(e.target.value);
-      state.amountCents = cents ?? 0;
-      renderForm();
-      const val = container.querySelector('#f-amount');
-      val.focus();
-      val.selectionStart = val.selectionEnd = val.value.length;
+      state.amountStr = e.target.value;
+      state.amountCents = parseAmountToCents(e.target.value) ?? 0;
+      updateSplitUI();
     });
 
     container.querySelector('#f-payer').addEventListener('change', (e) => {
@@ -199,28 +213,9 @@ export async function render(container, { tripId, expenseId }) {
     container.querySelectorAll('.p-amount').forEach((inp) => {
       inp.addEventListener('input', (e) => {
         const p = state.participants.find((x) => x.person_id === e.target.dataset.person);
-        const cents = parseAmountToCents(e.target.value);
         p.dirty = true;
-        p.shareCents = cents ?? 0;
-        recompute();
-        const remainingNow =
-          state.amountCents - state.participants.filter((x) => x.included).reduce((s, x) => s + x.shareCents, 0);
-        const bar = container.querySelector('.remaining-bar');
-        bar.className = `remaining-bar ${remainingNow === 0 ? 'balanced' : 'off'}`;
-        bar.querySelector('strong').textContent = formatCents(remainingNow);
-        container.querySelector('#save-expense').disabled = !(
-          state.amountCents > 0 &&
-          state.description.trim() &&
-          remainingNow === 0 &&
-          state.participants.some((x) => x.included)
-        );
-        container.querySelectorAll('.p-amount').forEach((otherInp) => {
-          if (otherInp === e.target) return;
-          const other = state.participants.find((x) => x.person_id === otherInp.dataset.person);
-          if (other.included && !other.dirty) {
-            otherInp.value = (other.shareCents / 100).toFixed(2);
-          }
-        });
+        p.shareCents = parseAmountToCents(e.target.value) ?? 0;
+        updateSplitUI();
       });
     });
 
