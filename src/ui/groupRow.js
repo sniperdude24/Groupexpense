@@ -14,10 +14,10 @@ export function balanceLabel(cents) {
   return cents > 0 ? `you're owed ${formatCents(cents)}` : `you owe ${formatCents(-cents)}`;
 }
 
-export function groupRowHtml({ group, mine }) {
+export function groupRowHtml({ group, mine, linkTo }) {
   return `
     <div class="row group-row">
-      <a class="group-row-link" href="#/groups/${group.id}">
+      <a class="group-row-link" href="#${linkTo || `/groups/${group.id}`}">
         <div class="row-title">${escapeHtml(group.name)}</div>
         <div class="row-sub">${balanceLabel(mine)}</div>
       </a>

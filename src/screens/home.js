@@ -1,5 +1,5 @@
 import { listGroups, createGroup } from '../repo/groups.js';
-import { createTrip } from '../repo/trips.js';
+import { createTrip, listTripsOfGroup } from '../repo/trips.js';
 import { createPerson, getMe } from '../repo/people.js';
 import { computeGroupBalance } from '../repo/queries.js';
 import { toast } from '../ui/helpers.js';
@@ -46,7 +46,12 @@ export async function render(container) {
     groups.map(async (g) => {
       const { net } = await computeGroupBalance(g.id);
       const mine = net.get(me.id) || 0;
-      return { group: g, mine };
+      // The common case is one trip per group -- go straight to it instead
+      // of an intermediate group overview. A group with zero or several
+      // trips still opens on the group screen, where they're listed.
+      const trips = await listTripsOfGroup(g.id);
+      const linkTo = trips.length === 1 ? `/trips/${trips[0].id}` : `/groups/${g.id}`;
+      return { group: g, mine, linkTo };
     })
   );
 

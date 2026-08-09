@@ -15,10 +15,11 @@ export async function render(container, { groupId }) {
   const nonMembers = allPeople.filter((p) => !memberPersonIds.has(p.id));
   const trips = await listTripsOfGroup(groupId);
   const soleTrip = trips.length === 1 ? trips[0] : null;
+  const backPath = soleTrip ? `/trips/${soleTrip.id}` : `/groups/${groupId}`;
 
   container.innerHTML = `
     <div class="topbar">
-      <a class="back-btn" href="#/groups/${groupId}">&larr;</a>
+      <a class="back-btn" href="#${backPath}">&larr;</a>
       <h1>Members</h1>
     </div>
     <div class="screen">

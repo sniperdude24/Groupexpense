@@ -1,5 +1,6 @@
-import { getTrip, settleTrip, reopenTrip } from '../repo/trips.js';
+import { getTrip, settleTrip, reopenTrip, listTripsOfGroup } from '../repo/trips.js';
 import { getGroup } from '../repo/groups.js';
+import { listMembersOfGroup } from '../repo/memberships.js';
 import { listExpensesOfTrip, deleteExpense } from '../repo/expenses.js';
 import { listSettlementsForTrip, deleteSettlement } from '../repo/settlements.js';
 import { computeTripBalance } from '../repo/queries.js';
@@ -7,6 +8,7 @@ import { getMe, listPeople } from '../repo/people.js';
 import { formatCents } from '../lib/money.js';
 import { escapeHtml, formatDate, toast } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
+import { openGroupSettingsModal } from '../ui/groupSettingsModal.js';
 import { navigate } from '../router.js';
 
 function balanceClass(cents) {
@@ -22,8 +24,17 @@ export async function render(container, { tripId }) {
     return;
   }
   const group = await getGroup(trip.group_id);
+  const members = await listMembersOfGroup(trip.group_id);
   const peopleById = new Map((await listPeople()).map((p) => [p.id, p]));
   const me = await getMe();
+
+  // The common case is one trip per group, so this screen doubles as the
+  // group screen and "back" returns to Home directly -- the user never saw
+  // an intermediate group screen to return to. A group with several trips
+  // still has one, reached from and returning to Group Detail's trip list.
+  const groupTrips = await listTripsOfGroup(trip.group_id);
+  const isSoleTrip = groupTrips.length === 1;
+  const backPath = isSoleTrip ? '/' : `/groups/${group.id}`;
 
   const expenses = await listExpensesOfTrip(tripId);
   expenses.sort((a, b) => b.spent_at - a.spent_at);
@@ -34,8 +45,9 @@ export async function render(container, { tripId }) {
 
   container.innerHTML = `
     <div class="topbar">
-      <a class="back-btn" href="#/groups/${group.id}">&larr;</a>
-      <h1>${escapeHtml(trip.name)}</h1>
+      <a class="back-btn" href="#${backPath}">&larr;</a>
+      <h1>${escapeHtml(group.name)}</h1>
+      <button class="icon-btn" id="group-menu">&#8942;</button>
     </div>
     <div class="screen">
       ${
@@ -47,7 +59,7 @@ export async function render(container, { tripId }) {
       }
 
       <div class="card">
-        <div class="section-title" style="margin-bottom:10px;">Trip balance</div>
+        <div class="section-title" style="margin-bottom:10px;">Balance</div>
         <div class="list">
           ${[...net.entries()]
             .filter(([, cents]) => cents !== 0)
@@ -94,6 +106,27 @@ export async function render(container, { tripId }) {
       </div>
 
       <div>
+        <div class="section-title" style="margin-bottom:8px;">Members</div>
+        <div class="list">
+          ${
+            members
+              .map(
+                (m) => `<div class="row" style="cursor:default;">
+                  <div>
+                    <div class="row-title">${escapeHtml(m.person.name)}${m.person.id === me?.id ? ' (you)' : ''}</div>
+                    ${m.person.note ? `<div class="row-sub">${escapeHtml(m.person.note)}</div>` : ''}
+                  </div>
+                </div>`
+              )
+              .join('') || '<p class="empty">No members yet.</p>'
+          }
+        </div>
+        <div style="margin-top:10px;">
+          <button class="btn ghost" id="manage-members">Manage members</button>
+        </div>
+      </div>
+
+      <div>
         <div class="section-title" style="margin-bottom:8px;">Expenses</div>
         <div class="list">
           ${
@@ -119,6 +152,10 @@ export async function render(container, { tripId }) {
   `;
 
   container.querySelector('#settle-up-btn').addEventListener('click', () => navigate(`/trips/${tripId}/settle`));
+  container.querySelector('#manage-members').addEventListener('click', () => navigate(`/groups/${group.id}/members`));
+  container.querySelector('#group-menu').addEventListener('click', () => {
+    openGroupSettingsModal(group, () => render(container, { tripId }));
+  });
 
   const addBtn = container.querySelector('#add-expense-btn');
   if (addBtn) addBtn.addEventListener('click', () => navigate(`/trips/${tripId}/expenses/new`));
