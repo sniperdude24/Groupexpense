@@ -1,5 +1,6 @@
 import { renamePerson, setPersonNote, setIsMe, listPeople } from '../repo/people.js';
 import { mergePeople, previewMerge } from '../repo/merge.js';
+import { deletePerson, previewDeletePerson } from '../repo/deletePerson.js';
 import { escapeHtml, toast, onActivate } from './helpers.js';
 import { openModal, closeModal } from './modal.js';
 
@@ -23,6 +24,7 @@ export function openPersonEditModal(person, onDone) {
       <button class="btn" id="edit-save">Save</button>
     </div>
     <button class="btn ghost" id="edit-merge" style="margin-top:10px;">Merge into another person&hellip;</button>
+    <button class="btn ghost" id="edit-delete" style="margin-top:10px; color:var(--negative); border-color:var(--negative);">Delete person&hellip;</button>
   `);
   const overlay = document.getElementById('modal-overlay');
   overlay.querySelector('#edit-cancel').addEventListener('click', closeModal);
@@ -40,6 +42,9 @@ export function openPersonEditModal(person, onDone) {
   overlay.querySelector('#edit-merge').addEventListener('click', async () => {
     const others = (await listPeople()).filter((p) => p.id !== person.id);
     openMergePicker(person, others, onDone);
+  });
+  overlay.querySelector('#edit-delete').addEventListener('click', async () => {
+    openDeleteFlow(person, onDone);
   });
 }
 
@@ -81,6 +86,72 @@ function openMergePicker(source, others, onDone) {
       const target = others.find((p) => p.id === row.dataset.id);
       openMergeConfirm(source, target, onDone);
     });
+  });
+}
+
+async function openDeleteFlow(person, onDone) {
+  const preview = await previewDeletePerson(person.id);
+
+  if (!preview.canDelete) {
+    const reasons = [];
+    if (preview.isMe) {
+      reasons.push("This is you — mark someone else as \"me\" first if you need to.");
+    }
+    if (preview.payerCount) {
+      reasons.push(
+        `${escapeHtml(person.name)} is the payer on ${preview.payerCount} expense${preview.payerCount === 1 ? '' : 's'}. Reassign the payer on those first.`
+      );
+    }
+    if (preview.settlementCount) {
+      reasons.push(
+        `${escapeHtml(person.name)} has ${preview.settlementCount} recorded payment${preview.settlementCount === 1 ? '' : 's'}. Delete ${preview.settlementCount === 1 ? 'it' : 'those'} first.`
+      );
+    }
+    if (preview.settledTripExpense) {
+      reasons.push(`"${escapeHtml(preview.settledTripExpense.description)}" is in a settled trip. Reopen it first.`);
+    }
+    if (preview.soleParticipantExpense) {
+      reasons.push(
+        `${escapeHtml(person.name)} is the only person on "${escapeHtml(preview.soleParticipantExpense.description)}". Edit that expense first.`
+      );
+    }
+    openModal(`
+      <h2>Can't delete ${escapeHtml(person.name)} yet</h2>
+      <p style="color:var(--text-dim); font-size:14px;">${reasons.join(' ')}</p>
+      <p style="color:var(--text-dim); font-size:14px;">
+        If ${escapeHtml(person.name)} is a duplicate, merging into another person works regardless of any of this.
+      </p>
+      <button class="btn secondary" id="blocked-close">Close</button>
+    `);
+    document.getElementById('modal-overlay').querySelector('#blocked-close').addEventListener('click', closeModal);
+    return;
+  }
+
+  const detail =
+    preview.splitExpenseCount > 0
+      ? `Their share on ${preview.splitExpenseCount} expense${preview.splitExpenseCount === 1 ? '' : 's'} will be redistributed evenly among the other people already on each one.`
+      : "They aren't on any expenses, so there's nothing to redistribute.";
+
+  openModal(`
+    <h2>Delete ${escapeHtml(person.name)}?</h2>
+    <p style="color:var(--text-dim); font-size:14px;">${detail} This can't be undone.</p>
+    <div class="btn-row">
+      <button class="btn secondary" id="delete-cancel">Cancel</button>
+      <button class="btn danger" id="delete-confirm">Delete</button>
+    </div>
+  `);
+  const overlay = document.getElementById('modal-overlay');
+  overlay.querySelector('#delete-cancel').addEventListener('click', closeModal);
+  overlay.querySelector('#delete-confirm').addEventListener('click', async () => {
+    try {
+      await deletePerson(person.id);
+      closeModal();
+      toast(`${person.name} deleted`);
+      onDone();
+    } catch (err) {
+      closeModal();
+      toast(err.message || 'Could not delete');
+    }
   });
 }
 
