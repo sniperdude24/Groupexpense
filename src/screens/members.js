@@ -1,9 +1,11 @@
 import { getGroup } from '../repo/groups.js';
 import { listMembersOfGroup, addMember, removeMember } from '../repo/memberships.js';
 import { listPeople, createPerson } from '../repo/people.js';
+import { listTripsOfGroup } from '../repo/trips.js';
 import { escapeHtml, toast, onActivate } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
 import { openPersonEditModal } from '../ui/personEditModal.js';
+import { navigate } from '../router.js';
 
 export async function render(container, { groupId }) {
   const group = await getGroup(groupId);
@@ -11,6 +13,8 @@ export async function render(container, { groupId }) {
   const memberPersonIds = new Set(members.map((m) => m.person.id));
   const allPeople = await listPeople();
   const nonMembers = allPeople.filter((p) => !memberPersonIds.has(p.id));
+  const trips = await listTripsOfGroup(groupId);
+  const soleTrip = trips.length === 1 ? trips[0] : null;
 
   container.innerHTML = `
     <div class="topbar">
@@ -61,8 +65,14 @@ export async function render(container, { groupId }) {
       </div>
 
       <button class="btn ghost" id="add-new-person">+ Add someone new</button>
+      ${soleTrip ? `<button class="btn" id="continue-to-expenses">Continue to expenses</button>` : ''}
     </div>
   `;
+
+  const continueBtn = container.querySelector('#continue-to-expenses');
+  if (continueBtn) {
+    continueBtn.addEventListener('click', () => navigate(`/trips/${soleTrip.id}`));
+  }
 
   container.querySelectorAll('.remove-btn').forEach((btn) => {
     btn.addEventListener('click', async (e) => {

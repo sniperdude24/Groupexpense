@@ -1,4 +1,5 @@
 import { listGroups, createGroup } from '../repo/groups.js';
+import { createTrip } from '../repo/trips.js';
 import { createPerson, getMe } from '../repo/people.js';
 import { computeGroupBalance } from '../repo/queries.js';
 import { formatCents } from '../lib/money.js';
@@ -112,9 +113,10 @@ export async function render(container) {
         return;
       }
       const group = await createGroup(name);
+      await createTrip({ groupId: group.id, name });
       closeModal();
-      toast('Group created');
-      navigate(`/groups/${group.id}`);
+      toast('Group created — add people, then start adding expenses');
+      navigate(`/groups/${group.id}/members`);
     });
   });
 }
