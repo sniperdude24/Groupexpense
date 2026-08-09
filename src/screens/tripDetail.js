@@ -1,6 +1,5 @@
 import { getTrip, settleTrip, reopenTrip, listTripsOfGroup } from '../repo/trips.js';
 import { getGroup } from '../repo/groups.js';
-import { listMembersOfGroup } from '../repo/memberships.js';
 import { listExpensesOfTrip, deleteExpense } from '../repo/expenses.js';
 import { listSettlementsForTrip, deleteSettlement } from '../repo/settlements.js';
 import { computeTripBalance } from '../repo/queries.js';
@@ -24,7 +23,6 @@ export async function render(container, { tripId }) {
     return;
   }
   const group = await getGroup(trip.group_id);
-  const members = await listMembersOfGroup(trip.group_id);
   const peopleById = new Map((await listPeople()).map((p) => [p.id, p]));
   const me = await getMe();
 
@@ -47,6 +45,7 @@ export async function render(container, { tripId }) {
     <div class="topbar">
       <a class="back-btn" href="#${backPath}">&larr;</a>
       <h1>${escapeHtml(group.name)}</h1>
+      <button class="icon-btn" id="members-btn" title="Members">&#128101;</button>
       <button class="icon-btn" id="group-menu">&#8942;</button>
     </div>
     <div class="screen">
@@ -106,27 +105,6 @@ export async function render(container, { tripId }) {
       </div>
 
       <div>
-        <div class="section-title" style="margin-bottom:8px;">Members</div>
-        <div class="list">
-          ${
-            members
-              .map(
-                (m) => `<div class="row" style="cursor:default;">
-                  <div>
-                    <div class="row-title">${escapeHtml(m.person.name)}${m.person.id === me?.id ? ' (you)' : ''}</div>
-                    ${m.person.note ? `<div class="row-sub">${escapeHtml(m.person.note)}</div>` : ''}
-                  </div>
-                </div>`
-              )
-              .join('') || '<p class="empty">No members yet.</p>'
-          }
-        </div>
-        <div style="margin-top:10px;">
-          <button class="btn ghost" id="manage-members">Manage members</button>
-        </div>
-      </div>
-
-      <div>
         <div class="section-title" style="margin-bottom:8px;">Expenses</div>
         <div class="list">
           ${
@@ -152,7 +130,7 @@ export async function render(container, { tripId }) {
   `;
 
   container.querySelector('#settle-up-btn').addEventListener('click', () => navigate(`/trips/${tripId}/settle`));
-  container.querySelector('#manage-members').addEventListener('click', () => navigate(`/groups/${group.id}/members`));
+  container.querySelector('#members-btn').addEventListener('click', () => navigate(`/groups/${group.id}/members`));
   container.querySelector('#group-menu').addEventListener('click', () => {
     openGroupSettingsModal(group, () => render(container, { tripId }));
   });
