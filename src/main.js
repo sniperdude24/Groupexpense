@@ -10,6 +10,7 @@ import { render as renderExpenseForm } from './screens/expenseForm.js';
 import { render as renderSettleUp } from './screens/settleUp.js';
 import { render as renderPeople } from './screens/people.js';
 import { render as renderSettings } from './screens/settings.js';
+import { render as renderArchived } from './screens/archived.js';
 
 registerSW({ immediate: true });
 
@@ -23,6 +24,7 @@ registerRoute('/trips/:tripId/expenses/new', renderExpenseForm);
 registerRoute('/trips/:tripId/expenses/:expenseId/edit', renderExpenseForm);
 registerRoute('/people', renderPeople);
 registerRoute('/settings', renderSettings);
+registerRoute('/archived', renderArchived);
 
 async function boot() {
   await ensureMeta();

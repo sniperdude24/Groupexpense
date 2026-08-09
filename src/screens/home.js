@@ -2,21 +2,10 @@ import { listGroups, createGroup } from '../repo/groups.js';
 import { createTrip } from '../repo/trips.js';
 import { createPerson, getMe } from '../repo/people.js';
 import { computeGroupBalance } from '../repo/queries.js';
-import { formatCents } from '../lib/money.js';
-import { escapeHtml, toast } from '../ui/helpers.js';
+import { toast } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
+import { groupRowHtml, wireGroupRowActions } from '../ui/groupRow.js';
 import { navigate } from '../router.js';
-
-function balanceClass(cents) {
-  if (cents > 0) return 'positive';
-  if (cents < 0) return 'negative';
-  return 'zero';
-}
-
-function balanceLabel(cents) {
-  if (cents === 0) return 'Settled up';
-  return cents > 0 ? `you're owed ${formatCents(cents)}` : `you owe ${formatCents(-cents)}`;
-}
 
 async function renderOnboarding(container) {
   container.innerHTML = `
@@ -71,24 +60,14 @@ export async function render(container) {
       ${
         rows.length === 0
           ? `<p class="empty">No groups yet. Tap "New group" to start tracking shared expenses.</p>`
-          : `<div class="list">
-              ${rows
-                .map(
-                  ({ group, mine }) => `
-                <a class="row" href="#/groups/${group.id}">
-                  <div>
-                    <div class="row-title">${escapeHtml(group.name)}</div>
-                    <div class="row-sub">${balanceLabel(mine)}</div>
-                  </div>
-                  <div class="amount ${balanceClass(mine)}">${mine === 0 ? '' : formatCents(Math.abs(mine))}</div>
-                </a>`
-                )
-                .join('')}
-            </div>`
+          : `<div class="list">${rows.map(groupRowHtml).join('')}</div>`
       }
+      <a class="nav-link" href="#/archived" style="text-align:center;">Archived groups</a>
     </div>
     <div class="fab"><button class="btn" id="new-group-btn">+ New group</button></div>
   `;
+
+  wireGroupRowActions(container, () => render(container));
 
   container.querySelector('#new-group-btn').addEventListener('click', () => {
     openModal(`

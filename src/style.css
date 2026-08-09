@@ -351,3 +351,19 @@ input:focus, select:focus, textarea:focus {
   color: var(--accent);
   font-weight: 600;
 }
+
+.group-row-link {
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.archive-group-btn {
+  color: var(--accent);
+}

@@ -1,4 +1,4 @@
-import { getGroup, renameGroup, setGroupArchived } from '../repo/groups.js';
+import { getGroup, renameGroup, setGroupArchived, deleteGroup, isGroupSettledUp } from '../repo/groups.js';
 import { listMembersOfGroup } from '../repo/memberships.js';
 import { createTrip } from '../repo/trips.js';
 import { computeGroupBalance, computeGroupTripSummaries } from '../repo/queries.js';
@@ -201,6 +201,7 @@ export async function render(container, { groupId }) {
         <button class="btn secondary" id="rename-save">Save name</button>
       </div>
       <button class="btn ghost" id="archive-btn">${group.archived ? 'Unarchive group' : 'Archive group'}</button>
+      <button class="btn ghost" id="delete-btn" style="margin-top:10px; color:var(--negative); border-color:var(--negative);">Delete group&hellip;</button>
     `);
     const overlay = document.getElementById('modal-overlay');
     overlay.querySelector('#rename-save').addEventListener('click', async () => {
@@ -215,6 +216,45 @@ export async function render(container, { groupId }) {
       closeModal();
       toast(group.archived ? 'Group unarchived' : 'Group archived');
       navigate('/');
+    });
+    overlay.querySelector('#delete-btn').addEventListener('click', async () => {
+      const settled = await isGroupSettledUp(groupId);
+      if (!settled) {
+        openModal(`
+          <h2>Can't delete this group yet</h2>
+          <p style="color:var(--text-dim); font-size:14px;">
+            It still has an outstanding balance. Settle up first, or archive it instead to hide
+            it without losing anything.
+          </p>
+          <button class="btn secondary" id="blocked-close">Close</button>
+        `);
+        document.getElementById('modal-overlay').querySelector('#blocked-close').addEventListener('click', closeModal);
+        return;
+      }
+      openModal(`
+        <h2>Delete this group?</h2>
+        <p style="color:var(--text-dim); font-size:14px;">
+          This permanently deletes the group and everything in it — trips, expenses, and payment
+          history. This can't be undone.
+        </p>
+        <div class="btn-row">
+          <button class="btn secondary" id="delete-group-cancel">Cancel</button>
+          <button class="btn danger" id="delete-group-confirm">Delete</button>
+        </div>
+      `);
+      const confirmOverlay = document.getElementById('modal-overlay');
+      confirmOverlay.querySelector('#delete-group-cancel').addEventListener('click', closeModal);
+      confirmOverlay.querySelector('#delete-group-confirm').addEventListener('click', async () => {
+        try {
+          await deleteGroup(groupId);
+          closeModal();
+          toast('Group deleted');
+          navigate('/');
+        } catch (err) {
+          closeModal();
+          toast(err.message || 'Could not delete group');
+        }
+      });
     });
   });
 }
