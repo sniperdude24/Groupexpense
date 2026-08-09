@@ -1,4 +1,5 @@
 import { listPeople, createPerson, renamePerson, setPersonNote, setIsMe } from '../repo/people.js';
+import { mergePeople, previewMerge } from '../repo/merge.js';
 import { escapeHtml, toast, onActivate } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
 
@@ -93,6 +94,7 @@ function openEditModal(container, person) {
       <button class="btn secondary" id="edit-cancel">Cancel</button>
       <button class="btn" id="edit-save">Save</button>
     </div>
+    <button class="btn ghost" id="edit-merge" style="margin-top:10px;">Merge into another person&hellip;</button>
   `);
   const overlay = document.getElementById('modal-overlay');
   overlay.querySelector('#edit-cancel').addEventListener('click', closeModal);
@@ -106,5 +108,84 @@ function openEditModal(container, person) {
     if (isMe && !person.is_me) await setIsMe(person.id);
     closeModal();
     render(container);
+  });
+  overlay.querySelector('#edit-merge').addEventListener('click', async () => {
+    const others = (await listPeople()).filter((p) => p.id !== person.id);
+    openMergePicker(container, person, others);
+  });
+}
+
+function openMergePicker(container, source, others) {
+  if (others.length === 0) {
+    openModal(`
+      <h2>Merge into another person</h2>
+      <p style="color:var(--text-dim); font-size:14px;">There's no one else in your roster to merge into.</p>
+      <button class="btn secondary" id="picker-close">Close</button>
+    `);
+    document.getElementById('modal-overlay').querySelector('#picker-close').addEventListener('click', closeModal);
+    return;
+  }
+
+  openModal(`
+    <h2>Merge ${escapeHtml(source.name)} into&hellip;</h2>
+    <p style="color:var(--text-dim); font-size:14px;">
+      Pick who ${escapeHtml(source.name)}'s expenses, splits, memberships and payments should move
+      to. ${escapeHtml(source.name)} will be deleted.
+    </p>
+    <div class="roster-pick">
+      ${others
+        .map(
+          (p) => `<div class="row merge-target" data-id="${p.id}" role="button" tabindex="0">
+            <div>
+              <div class="row-title">${escapeHtml(p.name)}</div>
+              ${p.note ? `<div class="row-sub">${escapeHtml(p.note)}</div>` : ''}
+            </div>
+          </div>`
+        )
+        .join('')}
+    </div>
+    <button class="btn ghost" id="picker-cancel">Cancel</button>
+  `);
+  const overlay = document.getElementById('modal-overlay');
+  overlay.querySelector('#picker-cancel').addEventListener('click', closeModal);
+  overlay.querySelectorAll('.merge-target').forEach((row) => {
+    onActivate(row, () => {
+      const target = others.find((p) => p.id === row.dataset.id);
+      openMergeConfirm(container, source, target);
+    });
+  });
+}
+
+async function openMergeConfirm(container, source, target) {
+  const counts = await previewMerge(source.id);
+  const parts = [];
+  if (counts.expenses) parts.push(`${counts.expenses} expense${counts.expenses === 1 ? '' : 's'}`);
+  if (counts.splits) parts.push(`${counts.splits} split${counts.splits === 1 ? '' : 's'}`);
+  if (counts.memberships) parts.push(`${counts.memberships} group membership${counts.memberships === 1 ? '' : 's'}`);
+  if (counts.settlements) parts.push(`${counts.settlements} payment${counts.settlements === 1 ? '' : 's'}`);
+  const summary = parts.length ? parts.join(', ') : 'nothing yet';
+
+  openModal(`
+    <h2>Merge ${escapeHtml(source.name)} into ${escapeHtml(target.name)}?</h2>
+    <p style="color:var(--text-dim); font-size:14px;">
+      This moves ${summary} from ${escapeHtml(source.name)} to ${escapeHtml(target.name)}, then
+      deletes ${escapeHtml(source.name)}. This cannot be undone.
+    </p>
+    <div class="btn-row">
+      <button class="btn secondary" id="confirm-cancel">Cancel</button>
+      <button class="btn danger" id="confirm-merge">Merge</button>
+    </div>
+  `);
+  const overlay = document.getElementById('modal-overlay');
+  overlay.querySelector('#confirm-cancel').addEventListener('click', closeModal);
+  overlay.querySelector('#confirm-merge').addEventListener('click', async () => {
+    try {
+      await mergePeople(source.id, target.id);
+      closeModal();
+      toast(`Merged into ${target.name}`);
+      render(container);
+    } catch (err) {
+      toast(err.message || 'Could not merge');
+    }
   });
 }
