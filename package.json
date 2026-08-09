@@ -1,0 +1,23 @@
+{
+  "name": "group-expense-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline-first phone PWA for tracking shared expenses across trips and groups",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "dexie": "^4.0.10"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.5",
+    "vite": "^5.4.10",
+    "vite-plugin-pwa": "^0.20.5",
+    "vitest": "^2.1.4"
+  }
+}
