@@ -3,6 +3,7 @@ import { listMembersOfGroup, addMember, removeMember } from '../repo/memberships
 import { listPeople, createPerson } from '../repo/people.js';
 import { escapeHtml, toast, onActivate } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
+import { openPersonEditModal } from '../ui/personEditModal.js';
 
 export async function render(container, { groupId }) {
   const group = await getGroup(groupId);
@@ -25,7 +26,7 @@ export async function render(container, { groupId }) {
               ? '<p class="empty">No members yet.</p>'
               : members
                   .map(
-                    (m) => `<div class="row" style="cursor:default;">
+                    (m) => `<div class="row edit-member" data-person="${m.person.id}" role="button" tabindex="0">
                       <div>
                         <div class="row-title">${escapeHtml(m.person.name)}</div>
                         ${m.person.note ? `<div class="row-sub">${escapeHtml(m.person.note)}</div>` : ''}
@@ -64,9 +65,17 @@ export async function render(container, { groupId }) {
   `;
 
   container.querySelectorAll('.remove-btn').forEach((btn) => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
       await removeMember(btn.dataset.membership);
       render(container, { groupId });
+    });
+  });
+
+  container.querySelectorAll('.edit-member').forEach((row) => {
+    onActivate(row, () => {
+      const membership = members.find((m) => m.person.id === row.dataset.person);
+      openPersonEditModal(membership.person, () => render(container, { groupId }));
     });
   });
 
