@@ -3,6 +3,7 @@ import { getGroup } from '../repo/groups.js';
 import { listMembersOfGroup } from '../repo/memberships.js';
 import { createExpense, updateExpense, deleteExpense, getExpenseWithSplits } from '../repo/expenses.js';
 import { computeEvenSplit } from '../lib/splits.js';
+import { COMMON_CATEGORIES } from '../lib/categories.js';
 import { parseAmountToCents, formatCents } from '../lib/money.js';
 import { escapeHtml, toast } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
@@ -129,6 +130,11 @@ export async function render(container, { tripId, expenseId }) {
         <div class="field">
           <label for="f-category">Category (optional)</label>
           <input id="f-category" type="text" value="${escapeHtml(state.category)}" placeholder="e.g. Food" autocomplete="off" />
+          <div class="category-chips">
+            ${COMMON_CATEGORIES.map(
+              (c) => `<button type="button" class="chip category-chip ${state.category === c ? 'selected' : ''}" data-category="${escapeHtml(c)}">${escapeHtml(c)}</button>`
+            ).join('')}
+          </div>
         </div>
 
         <div>
@@ -197,8 +203,24 @@ export async function render(container, { tripId, expenseId }) {
       state.spentAtStr = e.target.value;
     });
 
+    function syncCategoryChips() {
+      container.querySelectorAll('.category-chip').forEach((chip) => {
+        chip.classList.toggle('selected', chip.dataset.category === state.category);
+      });
+    }
+
     container.querySelector('#f-category').addEventListener('input', (e) => {
       state.category = e.target.value;
+      syncCategoryChips();
+    });
+
+    container.querySelectorAll('.category-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const categoryInput = container.querySelector('#f-category');
+        state.category = state.category === chip.dataset.category ? '' : chip.dataset.category;
+        categoryInput.value = state.category;
+        syncCategoryChips();
+      });
     });
 
     container.querySelectorAll('.p-include').forEach((cb) => {
