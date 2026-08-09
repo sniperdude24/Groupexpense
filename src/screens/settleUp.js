@@ -1,6 +1,6 @@
 import { getTrip } from '../repo/trips.js';
 import { getGroup } from '../repo/groups.js';
-import { listMembersOfGroup } from '../repo/memberships.js';
+import { listPeople } from '../repo/people.js';
 import { computeTripBalance, computeGroupBalance } from '../repo/queries.js';
 import { createSettlement } from '../repo/settlements.js';
 import { parseAmountToCents, formatCents } from '../lib/money.js';
@@ -8,7 +8,13 @@ import { escapeHtml, toast, onActivate } from '../ui/helpers.js';
 import { navigate } from '../router.js';
 
 export async function render(container, { tripId, groupId }) {
-  let scope, groupIdForSettlement, backPath, people, pairwise;
+  let scope, groupIdForSettlement, backPath, pairwise;
+
+  // The whole roster is selectable here, not just current members: a
+  // settlement isn't membership-gated in the data model, and someone who
+  // still owes money (or is owed) needs to stay reachable even after
+  // leaving the group.
+  const people = await listPeople();
 
   if (tripId) {
     const trip = await getTrip(tripId);
@@ -16,8 +22,6 @@ export async function render(container, { tripId, groupId }) {
       container.innerHTML = `<div class="topbar"><a class="back-btn" href="#/">&larr;</a><h1>Not found</h1></div>`;
       return;
     }
-    const members = await listMembersOfGroup(trip.group_id);
-    people = members.map((m) => m.person);
     groupIdForSettlement = trip.group_id;
     backPath = `/trips/${tripId}`;
     scope = { type: 'trip', tripId, label: trip.name };
@@ -28,8 +32,6 @@ export async function render(container, { tripId, groupId }) {
       container.innerHTML = `<div class="topbar"><a class="back-btn" href="#/">&larr;</a><h1>Not found</h1></div>`;
       return;
     }
-    const members = await listMembersOfGroup(groupId);
-    people = members.map((m) => m.person);
     groupIdForSettlement = groupId;
     backPath = `/groups/${groupId}`;
     scope = { type: 'group', groupId, label: group.name };

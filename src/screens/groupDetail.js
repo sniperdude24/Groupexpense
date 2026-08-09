@@ -2,9 +2,10 @@ import { getGroup, renameGroup, setGroupArchived } from '../repo/groups.js';
 import { listMembersOfGroup } from '../repo/memberships.js';
 import { createTrip } from '../repo/trips.js';
 import { computeGroupBalance, computeGroupTripSummaries } from '../repo/queries.js';
+import { listGroupLevelSettlements, deleteSettlement } from '../repo/settlements.js';
 import { getMe, listPeople } from '../repo/people.js';
 import { formatCents } from '../lib/money.js';
-import { escapeHtml, toast } from '../ui/helpers.js';
+import { escapeHtml, toast, formatDate } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
 import { navigate } from '../router.js';
 
@@ -24,10 +25,12 @@ export async function render(container, { groupId }) {
   const me = await getMe();
   const members = await listMembersOfGroup(groupId);
   const { net } = await computeGroupBalance(groupId);
+  const settlements = await listGroupLevelSettlements(groupId);
+  settlements.sort((a, b) => b.settled_at - a.settled_at);
   const trips = await computeGroupTripSummaries(groupId);
   trips.sort((a, b) => (b.trip.start_date || b.trip.settled_at || 0) - (a.trip.start_date || a.trip.settled_at || 0));
 
-  const peopleById = new Map(members.map((m) => [m.person.id, m.person]));
+  const peopleById = new Map((await listPeople()).map((p) => [p.id, p]));
 
   container.innerHTML = `
     <div class="topbar">
@@ -53,6 +56,32 @@ export async function render(container, { groupId }) {
         </div>
         <div style="margin-top:14px;">
           <button class="btn secondary" id="group-settle">Settle up</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-title" style="margin-bottom:8px;">Payments</div>
+        <div class="list">
+          ${
+            settlements.length === 0
+              ? '<p class="empty">No group-level payments recorded yet.</p>'
+              : settlements
+                  .map((s) => {
+                    const from = peopleById.get(s.from_person);
+                    const to = peopleById.get(s.to_person);
+                    return `<div class="row" style="cursor:default;">
+                      <div>
+                        <div class="row-title">${from ? escapeHtml(from.name) : 'Unknown'} &rarr; ${to ? escapeHtml(to.name) : 'Unknown'}</div>
+                        <div class="row-sub">${formatDate(s.settled_at)}</div>
+                      </div>
+                      <div style="display:flex; align-items:center; gap:10px;">
+                        <div class="amount">${formatCents(s.amount_cents)}</div>
+                        <button class="icon-btn delete-settlement" data-id="${s.id}">&#128465;</button>
+                      </div>
+                    </div>`;
+                  })
+                  .join('')
+          }
         </div>
       </div>
 
@@ -104,6 +133,34 @@ export async function render(container, { groupId }) {
 
   container.querySelector('#manage-members').addEventListener('click', () => navigate(`/groups/${groupId}/members`));
   container.querySelector('#group-settle').addEventListener('click', () => navigate(`/groups/${groupId}/settle`));
+
+  container.querySelectorAll('.delete-settlement').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      openModal(`
+        <h2>Delete this payment?</h2>
+        <p style="color:var(--text-dim); font-size:14px;">
+          This undoes the payment. Balances update immediately. This can't be undone.
+        </p>
+        <div class="btn-row">
+          <button class="btn secondary" id="del-settlement-cancel">Cancel</button>
+          <button class="btn danger" id="del-settlement-confirm">Delete</button>
+        </div>
+      `);
+      const overlay = document.getElementById('modal-overlay');
+      overlay.querySelector('#del-settlement-cancel').addEventListener('click', closeModal);
+      overlay.querySelector('#del-settlement-confirm').addEventListener('click', async () => {
+        try {
+          await deleteSettlement(btn.dataset.id);
+          closeModal();
+          toast('Payment deleted');
+          render(container, { groupId });
+        } catch (err) {
+          closeModal();
+          toast(err.message || 'Could not delete payment');
+        }
+      });
+    });
+  });
 
   container.querySelector('#add-trip-btn').addEventListener('click', () => {
     openModal(`

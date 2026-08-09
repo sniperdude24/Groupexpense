@@ -2,26 +2,13 @@ import Dexie from 'dexie';
 import { db } from '../db.js';
 import { newId, now } from '../lib/util.js';
 import { splitsSumToAmount } from '../lib/splits.js';
-
-class SettledTripError extends Error {
-  constructor() {
-    super('This trip is settled and read-only. Reopen it to make changes.');
-    this.name = 'SettledTripError';
-  }
-}
+import { SettledTripError, assertTripOpen } from './tripLock.js';
 
 class SplitMismatchError extends Error {
   constructor(amountCents, sum) {
     super(`Splits sum to ${sum} cents, but the expense is ${amountCents} cents.`);
     this.name = 'SplitMismatchError';
   }
-}
-
-async function assertTripOpen(tx, tripId) {
-  const trip = await tx.trips.get(tripId);
-  if (!trip) throw new Error('Trip not found');
-  if (trip.status === 'settled') throw new SettledTripError();
-  return trip;
 }
 
 function assertValidSplits(amountCents, splits) {

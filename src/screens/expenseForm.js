@@ -1,6 +1,7 @@
 import { getTrip } from '../repo/trips.js';
 import { getGroup } from '../repo/groups.js';
 import { listMembersOfGroup } from '../repo/memberships.js';
+import { listPeople } from '../repo/people.js';
 import { createExpense, updateExpense, deleteExpense, getExpenseWithSplits } from '../repo/expenses.js';
 import { computeEvenSplit } from '../lib/splits.js';
 import { COMMON_CATEGORIES } from '../lib/categories.js';
@@ -36,7 +37,11 @@ export async function render(container, { tripId, expenseId }) {
   }
 
   if (trip.status === 'settled') {
-    renderReadOnly(container, { trip, group, people, existing });
+    // Read-only view of a historical record, so resolve names from the full
+    // roster -- not just current members, who may have since been removed
+    // from the group without their past expenses becoming unattributed.
+    const allPeople = await listPeople();
+    renderReadOnly(container, { trip, group, people: allPeople, existing });
     return;
   }
 
