@@ -110,6 +110,7 @@ body {
 
 .row-title { font-weight: 600; font-size: 15px; }
 .row-sub { color: var(--text-dim); font-size: 13px; margin-top: 2px; }
+.covered-note { margin-left: 6px; font-style: italic; font-size: 12px; }
 
 .amount { font-variant-numeric: tabular-nums; font-weight: 600; }
 .amount.positive { color: var(--positive); }

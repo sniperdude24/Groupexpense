@@ -1,7 +1,7 @@
 import { getTrip, settleTrip, reopenTrip, listTripsOfGroup } from '../repo/trips.js';
 import { getGroup } from '../repo/groups.js';
 import { listExpensesOfTrip, deleteExpense } from '../repo/expenses.js';
-import { listSettlementsForTrip, deleteSettlement } from '../repo/settlements.js';
+import { listSettlementsForTrip, listGroupLevelSettlements, deleteSettlement } from '../repo/settlements.js';
 import { computeTripBalance } from '../repo/queries.js';
 import { getMe, listPeople } from '../repo/people.js';
 import { formatCents } from '../lib/money.js';
@@ -41,6 +41,16 @@ export async function render(container, { tripId }) {
   const { net } = await computeTripBalance(tripId);
   const settled = trip.status === 'settled';
 
+  // Trip balances are computed in isolation, so a payment recorded at group
+  // level never shows up here even when it covered this trip's debts (the
+  // spec forbids allocating it back). When such payments exist and this trip
+  // still shows balances, say so -- otherwise the numbers look wrong to
+  // whoever just paid up at group level.
+  const groupSettledCents = (await listGroupLevelSettlements(trip.group_id))
+    .reduce((sum, s) => sum + s.amount_cents, 0);
+  const tripUnsettled = [...net.values()].some((cents) => cents !== 0);
+  const maybeCovered = groupSettledCents > 0 && !settled && tripUnsettled;
+
   container.innerHTML = `
     <div class="topbar">
       <a class="back-btn" href="#${backPath}">&larr;</a>
@@ -72,6 +82,14 @@ export async function render(container, { tripId }) {
             })
             .join('') || '<p class="empty" style="padding:8px 0;">Everyone is settled up.</p>'}
         </div>
+        ${
+          maybeCovered
+            ? `<p id="covered-note" style="color:var(--text-dim); font-size:12px; font-style:italic; margin:10px 0 0;">
+                <a href="#/groups/${group.id}" style="color:inherit;">Group payments</a>
+                may cover part of this.
+              </p>`
+            : ''
+        }
         <div class="btn-row" style="margin-top:14px;">
           <button class="btn secondary" id="settle-up-btn">Settle up</button>
           ${!settled ? '<button class="btn ghost" id="mark-settled-btn">Mark settled</button>' : ''}

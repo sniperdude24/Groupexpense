@@ -28,6 +28,12 @@ export async function render(container, { groupId }) {
   const { net } = await computeGroupBalance(groupId);
   const settlements = await listGroupLevelSettlements(groupId);
   settlements.sort((a, b) => b.settled_at - a.settled_at);
+  // A group-level payment is deliberately never allocated across trips (see
+  // the spec's scope rules), so the trips it covered keep their own non-zero
+  // balances. These two labels are how that stays legible instead of looking
+  // like a bookkeeping error: the group says how much was settled at its
+  // level, and each still-open trip says its numbers may already be covered.
+  const groupSettledCents = settlements.reduce((sum, s) => sum + s.amount_cents, 0);
   const trips = await computeGroupTripSummaries(groupId);
   trips.sort((a, b) => (b.trip.start_date || b.trip.settled_at || 0) - (a.trip.start_date || a.trip.settled_at || 0));
 
@@ -55,6 +61,13 @@ export async function render(container, { groupId }) {
             })
             .join('') || '<p class="empty" style="padding:8px 0;">Everyone is settled up.</p>'}
         </div>
+        ${
+          groupSettledCents > 0
+            ? `<p id="group-settled-note" style="color:var(--text-dim); font-size:12px; margin:10px 0 0;">
+                Includes ${formatCents(groupSettledCents)} settled at group level.
+              </p>`
+            : ''
+        }
         <div style="margin-top:14px;">
           <button class="btn secondary" id="group-settle">Settle up</button>
         </div>
@@ -114,11 +127,15 @@ export async function render(container, { groupId }) {
               : trips
                   .map(({ trip, net: tripNet }) => {
                     const mine = tripNet.get(me?.id) || 0;
+                    const tripUnsettled = [...tripNet.values()].some((cents) => cents !== 0);
+                    const maybeCovered =
+                      groupSettledCents > 0 && trip.status === 'open' && tripUnsettled;
                     return `<a class="row" href="#/trips/${trip.id}">
                       <div>
                         <div class="row-title">${escapeHtml(trip.name)}</div>
                         <div class="row-sub">
                           <span class="badge ${trip.status === 'settled' ? 'settled' : ''}">${trip.status}</span>
+                          ${maybeCovered ? '<span class="covered-note">group payments may cover part of this</span>' : ''}
                         </div>
                       </div>
                       <div class="amount ${balanceClass(mine)}">${mine === 0 ? '—' : formatCents(Math.abs(mine))}</div>
