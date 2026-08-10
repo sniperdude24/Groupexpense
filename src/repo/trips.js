@@ -42,6 +42,33 @@ export async function setTripExcluded(tripId, excluded) {
   await db.trips.update(tripId, { excluded: !!excluded });
 }
 
+/**
+ * Persist a manual trip order: index in the array becomes sort_order. The UI
+ * hands over the entire ordered list every time, which keeps this idempotent
+ * and leaves no trip half-ordered.
+ */
+export async function setTripOrder(orderedTripIds) {
+  await db.transaction('rw', db.trips, async (tx) => {
+    for (let i = 0; i < orderedTripIds.length; i++) {
+      await tx.trips.update(orderedTripIds[i], { sort_order: i });
+    }
+  });
+}
+
+/**
+ * Manual order first (sort_order ascending), trips never ordered go last,
+ * newest-dated first among those -- which is the old behavior, so nothing
+ * moves until the user reorders on purpose.
+ */
+export function sortTripsForDisplay(trips) {
+  const manual = (t) => (Number.isFinite(t.sort_order) ? t.sort_order : Infinity);
+  return [...trips].sort(
+    (a, b) =>
+      manual(a) - manual(b) ||
+      (b.start_date || b.settled_at || 0) - (a.start_date || a.settled_at || 0)
+  );
+}
+
 export async function listTripsOfGroup(groupId) {
   return db.trips.where('group_id').equals(groupId).toArray();
 }

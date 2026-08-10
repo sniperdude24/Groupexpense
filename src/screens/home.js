@@ -1,5 +1,5 @@
 import { listGroups, createGroup, pickMainGroup } from '../repo/groups.js';
-import { createTrip, listTripsOfGroup } from '../repo/trips.js';
+import { createTrip, listTripsOfGroup, setTripOrder, sortTripsForDisplay } from '../repo/trips.js';
 import { createPerson, getMe } from '../repo/people.js';
 import { computeGroupBalance, computeGroupTripSummaries } from '../repo/queries.js';
 import { listGroupLevelSettlements } from '../repo/settlements.js';
@@ -97,11 +97,9 @@ export async function render(container) {
   const groupSettledCents = (await listGroupLevelSettlements(main.id))
     .reduce((sum, s) => sum + s.amount_cents, 0);
 
-  const trips = await computeGroupTripSummaries(main.id);
-  trips.sort(
-    (a, b) =>
-      (b.trip.start_date || b.trip.settled_at || 0) - (a.trip.start_date || a.trip.settled_at || 0)
-  );
+  const summaries = await computeGroupTripSummaries(main.id);
+  const displayOrder = sortTripsForDisplay(summaries.map((s) => s.trip)).map((t) => t.id);
+  summaries.sort((a, b) => displayOrder.indexOf(a.trip.id) - displayOrder.indexOf(b.trip.id));
 
   // Any other groups keep working exactly as before, in their own section.
   const others = await Promise.all(
@@ -139,34 +137,7 @@ export async function render(container) {
         }</div>
       </a>
 
-      <div>
-        <div class="section-title" style="margin-bottom:8px;">Trips</div>
-        <div class="list" id="trip-list">
-          ${
-            trips.length === 0
-              ? '<p class="empty">No trips yet. Tap "New trip" to start one.</p>'
-              : trips
-                  .map(({ trip, net: tripNet }) => {
-                    const my = tripNet.get(me.id) || 0;
-                    const tripUnsettled = [...tripNet.values()].some((cents) => cents !== 0);
-                    const maybeCovered =
-                      groupSettledCents > 0 && trip.status === 'open' && tripUnsettled && !trip.excluded;
-                    return `<a class="row" href="#/trips/${trip.id}">
-                      <div>
-                        <div class="row-title">${escapeHtml(trip.name)}</div>
-                        <div class="row-sub">
-                          <span class="badge ${trip.status === 'settled' ? 'settled' : ''}">${trip.status}</span>
-                          ${trip.excluded ? '<span class="badge">excluded</span>' : ''}
-                          ${maybeCovered ? '<span class="covered-note">group payments may cover part of this</span>' : ''}
-                        </div>
-                      </div>
-                      <div class="amount ${balanceClass(my)}">${my === 0 ? '&mdash;' : formatCents(Math.abs(my))}</div>
-                    </a>`;
-                  })
-                  .join('')
-          }
-        </div>
-      </div>
+      <div id="trips-section"></div>
 
       ${
         others.length
@@ -184,6 +155,87 @@ export async function render(container) {
     </div>
     <div class="fab"><button class="btn" id="new-trip-btn">+ New trip</button></div>
   `;
+
+  // The trips section re-renders in place when toggling reorder mode, so the
+  // rest of the screen (and scroll position) stays put.
+  let reorderMode = false;
+  const tripsSection = container.querySelector('#trips-section');
+
+  function tripRowBody(trip, tripNet) {
+    const my = tripNet.get(me.id) || 0;
+    const tripUnsettled = [...tripNet.values()].some((cents) => cents !== 0);
+    const maybeCovered =
+      groupSettledCents > 0 && trip.status === 'open' && tripUnsettled && !trip.excluded;
+    return `
+      <div>
+        <div class="row-title">${escapeHtml(trip.name)}</div>
+        <div class="row-sub">
+          <span class="badge ${trip.status === 'settled' ? 'settled' : ''}">${trip.status}</span>
+          ${trip.excluded ? '<span class="badge">excluded</span>' : ''}
+          ${maybeCovered ? '<span class="covered-note">group payments may cover part of this</span>' : ''}
+        </div>
+      </div>
+      <div class="amount ${balanceClass(my)}">${my === 0 ? '&mdash;' : formatCents(Math.abs(my))}</div>`;
+  }
+
+  function renderTrips() {
+    tripsSection.innerHTML = `
+      <div class="section-title" style="margin-bottom:8px; display:flex; align-items:baseline; justify-content:space-between; gap:8px;">
+        <span>Trips</span>
+        ${
+          summaries.length > 1
+            ? `<a href="#" id="reorder-toggle" style="font-size:13px; font-weight:400; text-transform:none; letter-spacing:normal; color:var(--accent); text-decoration:none;">${
+                reorderMode ? 'Done' : 'Reorder'
+              }</a>`
+            : ''
+        }
+      </div>
+      <div class="list" id="trip-list">
+        ${
+          summaries.length === 0
+            ? '<p class="empty">No trips yet. Tap "New trip" to start one.</p>'
+            : summaries
+                .map(({ trip, net: tripNet }, i) =>
+                  reorderMode
+                    ? `<div class="row" style="cursor:default;">
+                        <div style="display:flex; flex-direction:column; gap:2px; margin-right:10px;">
+                          <button class="icon-btn move-up" data-i="${i}" ${i === 0 ? 'disabled' : ''} title="Move up">&#9650;</button>
+                          <button class="icon-btn move-down" data-i="${i}" ${i === summaries.length - 1 ? 'disabled' : ''} title="Move down">&#9660;</button>
+                        </div>
+                        ${tripRowBody(trip, tripNet)}
+                      </div>`
+                    : `<a class="row" href="#/trips/${trip.id}">${tripRowBody(trip, tripNet)}</a>`
+                )
+                .join('')
+        }
+      </div>
+    `;
+
+    const toggle = tripsSection.querySelector('#reorder-toggle');
+    if (toggle) {
+      toggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        reorderMode = !reorderMode;
+        renderTrips();
+      });
+    }
+
+    const move = async (from, to) => {
+      const [entry] = summaries.splice(from, 1);
+      summaries.splice(to, 0, entry);
+      // Persist the whole visible order; the array is already the truth.
+      await setTripOrder(summaries.map((s) => s.trip.id));
+      renderTrips();
+    };
+    tripsSection.querySelectorAll('.move-up').forEach((btn) => {
+      btn.addEventListener('click', () => move(Number(btn.dataset.i), Number(btn.dataset.i) - 1));
+    });
+    tripsSection.querySelectorAll('.move-down').forEach((btn) => {
+      btn.addEventListener('click', () => move(Number(btn.dataset.i), Number(btn.dataset.i) + 1));
+    });
+  }
+
+  renderTrips();
 
   wireGroupRowActions(container, () => render(container));
   container.querySelector('#new-trip-btn').addEventListener('click', () => addTripModal(main.id));

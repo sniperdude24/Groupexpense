@@ -1,6 +1,6 @@
 import { getGroup } from '../repo/groups.js';
 import { listMembersOfGroup } from '../repo/memberships.js';
-import { createTrip } from '../repo/trips.js';
+import { createTrip, sortTripsForDisplay } from '../repo/trips.js';
 import { computeGroupBalance, computeGroupTripSummaries } from '../repo/queries.js';
 import { listGroupLevelSettlements, deleteSettlement } from '../repo/settlements.js';
 import { getMe, listPeople } from '../repo/people.js';
@@ -35,7 +35,8 @@ export async function render(container, { groupId }) {
   // level, and each still-open trip says its numbers may already be covered.
   const groupSettledCents = settlements.reduce((sum, s) => sum + s.amount_cents, 0);
   const trips = await computeGroupTripSummaries(groupId);
-  trips.sort((a, b) => (b.trip.start_date || b.trip.settled_at || 0) - (a.trip.start_date || a.trip.settled_at || 0));
+  const displayOrder = sortTripsForDisplay(trips.map((s) => s.trip)).map((t) => t.id);
+  trips.sort((a, b) => displayOrder.indexOf(a.trip.id) - displayOrder.indexOf(b.trip.id));
 
   const peopleById = new Map((await listPeople()).map((p) => [p.id, p]));
 
