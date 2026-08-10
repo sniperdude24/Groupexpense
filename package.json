@@ -12,9 +12,12 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "dexie": "^4.0.10"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.1",
     "vite": "^5.4.10",

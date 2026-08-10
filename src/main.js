@@ -12,7 +12,12 @@ import { render as renderPeople } from './screens/people.js';
 import { render as renderSettings } from './screens/settings.js';
 import { render as renderArchived } from './screens/archived.js';
 
-registerSW({ immediate: true });
+// The service worker is the PWA's install/offline story. Inside the native
+// (Capacitor) shell it's redundant -- assets are served from local files --
+// and a stale SW cache can mask a freshly shipped bundle, so skip it there.
+if (!window.Capacitor) {
+  registerSW({ immediate: true });
+}
 
 registerRoute('/', renderHome);
 registerRoute('/groups/:groupId', renderGroupDetail);
