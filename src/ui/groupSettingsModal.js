@@ -13,7 +13,8 @@ export function openGroupSettingsModal(group, onRenamed) {
     <div class="btn-row" style="margin-bottom:10px;">
       <button class="btn secondary" id="rename-save">Save name</button>
     </div>
-    <button class="btn ghost" id="archive-btn">${group.archived ? 'Unarchive group' : 'Archive group'}</button>
+    <button class="btn ghost" id="share-btn">Share to another phone&hellip;</button>
+    <button class="btn ghost" id="archive-btn" style="margin-top:10px;">${group.archived ? 'Unarchive group' : 'Archive group'}</button>
     <button class="btn ghost" id="delete-btn" style="margin-top:10px; color:var(--negative); border-color:var(--negative);">Delete group&hellip;</button>
   `);
   const overlay = document.getElementById('modal-overlay');
@@ -23,6 +24,10 @@ export function openGroupSettingsModal(group, onRenamed) {
     await renameGroup(group.id, val);
     closeModal();
     onRenamed();
+  });
+  overlay.querySelector('#share-btn').addEventListener('click', () => {
+    closeModal();
+    navigate(`/groups/${group.id}/share`);
   });
   overlay.querySelector('#archive-btn').addEventListener('click', async () => {
     await setGroupArchived(group.id, !group.archived);

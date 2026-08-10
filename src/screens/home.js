@@ -67,6 +67,7 @@ export async function render(container) {
           ? `<p class="empty">No groups yet. Tap "New group" to start tracking shared expenses.</p>`
           : `<div class="list">${rows.map(groupRowHtml).join('')}</div>`
       }
+      <a class="nav-link" href="#/receive" style="text-align:center;">Receive a group</a>
       <a class="nav-link" href="#/archived" style="text-align:center;">Archived groups</a>
     </div>
     <div class="fab"><button class="btn" id="new-group-btn">+ New group</button></div>

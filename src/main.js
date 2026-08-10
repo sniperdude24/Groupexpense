@@ -11,6 +11,8 @@ import { render as renderSettleUp } from './screens/settleUp.js';
 import { render as renderPeople } from './screens/people.js';
 import { render as renderSettings } from './screens/settings.js';
 import { render as renderArchived } from './screens/archived.js';
+import { render as renderShareGroup } from './screens/shareGroup.js';
+import { render as renderReceiveGroup } from './screens/receiveGroup.js';
 
 // The service worker is the PWA's install/offline story. Inside the native
 // (Capacitor) shell it's redundant -- assets are served from local files --
@@ -23,6 +25,8 @@ registerRoute('/', renderHome);
 registerRoute('/groups/:groupId', renderGroupDetail);
 registerRoute('/groups/:groupId/members', renderMembers);
 registerRoute('/groups/:groupId/settle', renderSettleUp);
+registerRoute('/groups/:groupId/share', renderShareGroup);
+registerRoute('/receive', renderReceiveGroup);
 registerRoute('/trips/:tripId', renderTripDetail);
 registerRoute('/trips/:tripId/settle', renderSettleUp);
 registerRoute('/trips/:tripId/expenses/new', renderExpenseForm);
