@@ -16,6 +16,20 @@ export async function setGroupArchived(groupId, archived) {
   await db.groups.update(groupId, { archived });
 }
 
+/**
+ * The oldest unarchived group is the "main" one -- the group Home is built
+ * around. Stateless on purpose: with one group there is nothing to choose,
+ * and with several the rule is at least predictable. Archiving the main
+ * group promotes the next oldest automatically.
+ */
+export function pickMainGroup(groups) {
+  return [...groups].sort((a, b) => a.created_at - b.created_at)[0] ?? null;
+}
+
+export async function getMainGroupId() {
+  return pickMainGroup(await listGroups())?.id ?? null;
+}
+
 export async function listGroups({ includeArchived = false } = {}) {
   const all = await db.groups.toArray();
   return includeArchived ? all : all.filter((g) => !g.archived);

@@ -1,5 +1,5 @@
-import { getTrip, settleTrip, reopenTrip, listTripsOfGroup } from '../repo/trips.js';
-import { getGroup } from '../repo/groups.js';
+import { getTrip, settleTrip, reopenTrip } from '../repo/trips.js';
+import { getGroup, getMainGroupId } from '../repo/groups.js';
 import { listExpensesOfTrip, deleteExpense } from '../repo/expenses.js';
 import { listSettlementsForTrip, listGroupLevelSettlements, deleteSettlement } from '../repo/settlements.js';
 import { computeTripBalance } from '../repo/queries.js';
@@ -26,13 +26,11 @@ export async function render(container, { tripId }) {
   const peopleById = new Map((await listPeople()).map((p) => [p.id, p]));
   const me = await getMe();
 
-  // The common case is one trip per group, so this screen doubles as the
-  // group screen and "back" returns to Home directly -- the user never saw
-  // an intermediate group screen to return to. A group with several trips
-  // still has one, reached from and returning to Group Detail's trip list.
-  const groupTrips = await listTripsOfGroup(trip.group_id);
-  const isSoleTrip = groupTrips.length === 1;
-  const backPath = isSoleTrip ? '/' : `/groups/${group.id}`;
+  // Home is built around the main group and lists its trips directly, so a
+  // main-group trip goes "back" to Home -- that IS its trip list. Trips in
+  // any other group return to that group's own screen.
+  const isMainGroupTrip = trip.group_id === (await getMainGroupId());
+  const backPath = isMainGroupTrip ? '/' : `/groups/${group.id}`;
 
   const expenses = await listExpensesOfTrip(tripId);
   expenses.sort((a, b) => b.spent_at - a.spent_at);
