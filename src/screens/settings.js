@@ -1,10 +1,30 @@
-import { exportData, importData, downloadExport, readImportFile } from '../repo/exportImport.js';
+import { exportData, downloadExport, readImportFile } from '../repo/exportImport.js';
+import { encodeBackupLink, linkFitsInUrl } from '../lib/backupLink.js';
+import { getMetaValue, setMetaValue } from '../repo/meta.js';
 import { toast } from '../ui/helpers.js';
-import { openModal, closeModal } from '../ui/modal.js';
-import { navigate } from '../router.js';
+import { offerImport } from '../ui/importModal.js';
 import { SCHEMA_VERSION } from '../db.js';
 
+function describeLastBackup(timestamp) {
+  if (!Number.isFinite(timestamp)) return 'Never backed up';
+  const days = Math.floor((Date.now() - timestamp) / 86_400_000);
+  if (days <= 0) return 'Last backed up today';
+  if (days === 1) return 'Last backed up yesterday';
+  return `Last backed up ${days} days ago`;
+}
+
 export async function render(container) {
+  const lastBackupAt = await getMetaValue('last_backup_at');
+
+  // Whether the browser has promised not to evict our storage under pressure.
+  // Advisory only, but worth surfacing: this app's data lives nowhere else.
+  let persisted = null;
+  try {
+    persisted = navigator.storage?.persisted ? await navigator.storage.persisted() : null;
+  } catch {
+    persisted = null;
+  }
+
   container.innerHTML = `
     <div class="topbar">
       <a class="back-btn" href="#/">&larr;</a>
@@ -12,14 +32,25 @@ export async function render(container) {
     </div>
     <div class="screen">
       <div class="card">
-        <p style="margin-top:0;">Export writes every group, trip, expense and payment to a single JSON
-          file — this is your only backup and the only way to move data to another device.</p>
-        <button class="btn secondary" id="export-btn">Export data</button>
+        <p style="margin-top:0;">Your data lives only on this device. <strong>Share backup</strong>
+          sends it as a link (or a file when it's large) — open it on another device to move
+          everything across, or keep it somewhere safe as a backup.</p>
+        <div class="btn-row">
+          <button class="btn" id="share-btn">Share backup</button>
+          <button class="btn secondary" id="export-btn">Download file</button>
+        </div>
+        <p id="backup-status" style="color:var(--text-dim); font-size:12px; margin:10px 0 0;">
+          ${describeLastBackup(lastBackupAt)}${
+            persisted === null ? '' : persisted
+              ? ' &middot; storage protected from cleanup'
+              : ' &middot; storage not yet protected — the browser may reclaim it, so back up often'
+          }
+        </p>
       </div>
 
       <div class="card">
-        <p style="margin-top:0;">Import reads that file back in. <strong>Merge</strong> skips anything
-          already on this device; <strong>Replace</strong> wipes this device first.</p>
+        <p style="margin-top:0;">Import a backup file from another device. <strong>Merge</strong> skips
+          anything already on this device; <strong>Replace</strong> wipes this device first.</p>
         <input type="file" id="import-file" accept="application/json" style="display:none;" />
         <button class="btn secondary" id="import-btn">Import data</button>
       </div>
@@ -28,10 +59,68 @@ export async function render(container) {
     </div>
   `;
 
+  const recordBackup = async () => {
+    await setMetaValue('last_backup_at', Date.now());
+    const status = container.querySelector('#backup-status');
+    if (status) status.textContent = describeLastBackup(Date.now());
+  };
+
+  /**
+   * One button, best available transport. Preference order:
+   *   1. share sheet with the link (small data)
+   *   2. clipboard with the link
+   *   3. share sheet with the file (large data, or no clipboard)
+   *   4. plain download
+   * A user-cancelled share sheet is not a fallthrough -- they changed their
+   * mind, so nothing else should pop up and no backup is recorded.
+   */
+  container.querySelector('#share-btn').addEventListener('click', async () => {
+    const data = await exportData();
+    const link = await encodeBackupLink(data, location.origin + location.pathname);
+
+    if (linkFitsInUrl(link)) {
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: 'Split backup', url: link });
+          await recordBackup();
+          return;
+        } catch (err) {
+          if (err.name === 'AbortError') return;
+        }
+      }
+      try {
+        await navigator.clipboard.writeText(link);
+        toast('Backup link copied — open it on your other device');
+        await recordBackup();
+        return;
+      } catch {
+        // No clipboard either; fall through to the file path.
+      }
+    }
+
+    const stamp = new Date(data.exported_at).toISOString().slice(0, 10);
+    const file = new File([JSON.stringify(data, null, 2)], `split-backup-${stamp}.json`, {
+      type: 'application/json'
+    });
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'Split backup' });
+        await recordBackup();
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+    downloadExport(data);
+    toast('Backup downloaded');
+    await recordBackup();
+  });
+
   container.querySelector('#export-btn').addEventListener('click', async () => {
     const data = await exportData();
     downloadExport(data);
-    toast('Export downloaded');
+    toast('Backup downloaded');
+    await recordBackup();
   });
 
   const fileInput = container.querySelector('#import-file');
@@ -48,33 +137,6 @@ export async function render(container) {
       toast(err.message);
       return;
     }
-
-    openModal(`
-      <h2>Import data</h2>
-      <p style="color:var(--text-dim); font-size:14px;">
-        ${data.groups?.length ?? 0} groups, ${data.trips?.length ?? 0} trips,
-        ${data.expenses?.length ?? 0} expenses in this file.
-      </p>
-      <div class="btn-row" style="margin-bottom:10px;">
-        <button class="btn secondary" id="import-merge">Merge</button>
-        <button class="btn danger" id="import-replace">Replace everything</button>
-      </div>
-      <button class="btn ghost" id="import-cancel">Cancel</button>
-    `);
-    const overlay = document.getElementById('modal-overlay');
-    overlay.querySelector('#import-cancel').addEventListener('click', closeModal);
-
-    const runImport = async (mode) => {
-      try {
-        await importData(data, { mode });
-        closeModal();
-        toast('Import complete');
-        navigate('/');
-      } catch (err) {
-        toast(err.message || 'Import failed');
-      }
-    };
-    overlay.querySelector('#import-merge').addEventListener('click', () => runImport('merge'));
-    overlay.querySelector('#import-replace').addEventListener('click', () => runImport('replace'));
+    offerImport(data, { source: 'file' });
   });
 }
