@@ -1,5 +1,6 @@
 import { db } from '../db.js';
 import { computeNetPositions, computePairwiseBalances } from '../lib/balances.js';
+import { simplifyDebts } from '../lib/simplify.js';
 import { listTripsOfGroup } from './trips.js';
 import { listSettlementsForGroup, listSettlementsForTrip } from './settlements.js';
 
@@ -17,9 +18,11 @@ export async function getTripScopeData(tripId) {
 
 export async function computeTripBalance(tripId) {
   const { expenses, splits, settlements } = await getTripScopeData(tripId);
+  const net = computeNetPositions(expenses, splits, settlements);
   return {
-    net: computeNetPositions(expenses, splits, settlements),
-    pairwise: computePairwiseBalances(expenses, splits, settlements)
+    net,
+    pairwise: computePairwiseBalances(expenses, splits, settlements),
+    simplified: simplifyDebts(net)
   };
 }
 
@@ -36,9 +39,11 @@ export async function getGroupScopeData(groupId) {
 
 export async function computeGroupBalance(groupId) {
   const { expenses, splits, settlements } = await getGroupScopeData(groupId);
+  const net = computeNetPositions(expenses, splits, settlements);
   return {
-    net: computeNetPositions(expenses, splits, settlements),
-    pairwise: computePairwiseBalances(expenses, splits, settlements)
+    net,
+    pairwise: computePairwiseBalances(expenses, splits, settlements),
+    simplified: simplifyDebts(net)
   };
 }
 

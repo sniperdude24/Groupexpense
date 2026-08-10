@@ -8,7 +8,13 @@ import { escapeHtml, toast, onActivate } from '../ui/helpers.js';
 import { navigate } from '../router.js';
 
 export async function render(container, { tripId, groupId }) {
-  let scope, groupIdForSettlement, backPath, pairwise;
+  let scope, groupIdForSettlement, backPath, pairwise, simplified;
+
+  // Which list the suggestions come from. Simplified is the default because
+  // it is the answer to "what do we actually pay?" -- but it can suggest a
+  // payment between two people who never shared an expense, so the raw
+  // who-owes-whom view stays one tap away for anyone who wants to check.
+  let mode = 'simplified';
 
   // The whole roster is selectable here, not just current members: a
   // settlement isn't membership-gated in the data model, and someone who
@@ -25,7 +31,7 @@ export async function render(container, { tripId, groupId }) {
     groupIdForSettlement = trip.group_id;
     backPath = `/trips/${tripId}`;
     scope = { type: 'trip', tripId, label: trip.name };
-    ({ pairwise } = await computeTripBalance(tripId));
+    ({ pairwise, simplified } = await computeTripBalance(tripId));
   } else {
     const group = await getGroup(groupId);
     if (!group) {
@@ -35,17 +41,24 @@ export async function render(container, { tripId, groupId }) {
     groupIdForSettlement = groupId;
     backPath = `/groups/${groupId}`;
     scope = { type: 'group', groupId, label: group.name };
-    ({ pairwise } = await computeGroupBalance(groupId));
+    ({ pairwise, simplified } = await computeGroupBalance(groupId));
   }
 
   const peopleById = new Map(people.map((p) => [p.id, p]));
 
   function renderForm(prefill) {
+    const suggestions = mode === 'simplified' ? simplified : pairwise;
     const state = {
       fromPerson: prefill?.from || people[0]?.id,
       toPerson: prefill?.to || people[1]?.id || people[0]?.id,
       amountStr: prefill ? (prefill.amount_cents / 100).toFixed(2) : ''
     };
+
+    const saved = pairwise.length - simplified.length;
+    const blurb =
+      mode === 'simplified'
+        ? `Fewest payments that settle everyone up${saved > 0 ? ` &mdash; ${saved} fewer than paying each debt directly` : ''}.`
+        : 'Every debt exactly as it was incurred, before simplifying.';
 
     container.innerHTML = `
       <div class="topbar">
@@ -56,11 +69,17 @@ export async function render(container, { tripId, groupId }) {
         <p style="color:var(--text-dim); font-size:13px; margin:0;">Recording at ${scope.type} level: ${escapeHtml(scope.label)}</p>
 
         ${
-          pairwise.length
+          suggestions.length
             ? `<div>
-                <div class="section-title" style="margin-bottom:8px;">Suggested</div>
+                <div class="section-title" style="margin-bottom:8px; display:flex; align-items:baseline; justify-content:space-between; gap:8px;">
+                  <span>${mode === 'simplified' ? 'Suggested' : 'Who owes whom'}</span>
+                  <a href="#" id="toggle-mode" style="font-size:13px; font-weight:400; text-transform:none; letter-spacing:normal; color:var(--accent); text-decoration:none; white-space:nowrap;">${
+                    mode === 'simplified' ? 'Show who owes whom' : 'Show fewest payments'
+                  }</a>
+                </div>
+                <p style="color:var(--text-dim); font-size:13px; margin:0 0 8px;">${blurb}</p>
                 <div class="list">
-                  ${pairwise
+                  ${suggestions
                     .map((b, i) => {
                       const from = peopleById.get(b.from);
                       const to = peopleById.get(b.to);
@@ -99,10 +118,20 @@ export async function render(container, { tripId, groupId }) {
 
     container.querySelectorAll('.suggestion').forEach((row) => {
       onActivate(row, () => {
-        const b = pairwise[Number(row.dataset.i)];
-        renderForm(b);
+        renderForm(suggestions[Number(row.dataset.i)]);
       });
     });
+
+    const toggle = container.querySelector('#toggle-mode');
+    if (toggle) {
+      toggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        mode = mode === 'simplified' ? 'pairwise' : 'simplified';
+        // Re-prefill from the newly shown list rather than keeping a payment
+        // the user can no longer see in front of them.
+        renderForm((mode === 'simplified' ? simplified : pairwise)[0]);
+      });
+    }
 
     container.querySelector('#s-from').addEventListener('change', (e) => {
       state.fromPerson = e.target.value;
@@ -140,5 +169,5 @@ export async function render(container, { tripId, groupId }) {
     });
   }
 
-  renderForm(pairwise[0]);
+  renderForm(simplified[0]);
 }
