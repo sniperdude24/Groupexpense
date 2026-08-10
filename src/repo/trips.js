@@ -31,6 +31,17 @@ export async function reopenTrip(tripId) {
   await db.trips.update(tripId, { status: 'open', settled_at: null });
 }
 
+/**
+ * An excluded trip keeps its own books but stays out of the group ledger --
+ * for the trip everyone agreed to call even, or the one-off that shouldn't
+ * skew the crew's running total. Display state, not a lock: the trip stays
+ * fully editable, and the deletion safety check deliberately ignores this
+ * flag so an excluded debt can still never be silently erased.
+ */
+export async function setTripExcluded(tripId, excluded) {
+  await db.trips.update(tripId, { excluded: !!excluded });
+}
+
 export async function listTripsOfGroup(groupId) {
   return db.trips.where('group_id').equals(groupId).toArray();
 }

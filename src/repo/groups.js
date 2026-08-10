@@ -45,7 +45,9 @@ export async function getGroup(groupId) {
 }
 
 export async function isGroupSettledUp(groupId) {
-  const { net } = await computeGroupBalance(groupId);
+  // includeExcluded: this guards deletion, and excluding a trip from the
+  // group's *display* must never make its debts deletable.
+  const { net } = await computeGroupBalance(groupId, { includeExcluded: true });
   return [...net.values()].every((v) => v === 0);
 }
 

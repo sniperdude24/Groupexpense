@@ -37,12 +37,25 @@ export async function getGroupScopeData(groupId) {
   return { trips, expenses, splits, settlements };
 }
 
-export async function computeGroupBalance(groupId) {
-  const { expenses, splits, settlements } = await getGroupScopeData(groupId);
-  const net = computeNetPositions(expenses, splits, settlements);
+export async function computeGroupBalance(groupId, { includeExcluded = false } = {}) {
+  const { trips, expenses, splits, settlements } = await getGroupScopeData(groupId);
+
+  // An excluded trip keeps its own books but stays out of the group ledger:
+  // its expenses, its splits and its trip-scoped settlements all drop out.
+  // Group-level settlements (trip_id null) always count. includeExcluded is
+  // for the deletion safety check, which must see every debt regardless.
+  const excludedIds = new Set(
+    includeExcluded ? [] : trips.filter((t) => t.excluded).map((t) => t.id)
+  );
+  const keptExpenses = expenses.filter((e) => !excludedIds.has(e.trip_id));
+  const keptExpenseIds = new Set(keptExpenses.map((e) => e.id));
+  const keptSplits = splits.filter((s) => keptExpenseIds.has(s.expense_id));
+  const keptSettlements = settlements.filter((s) => !s.trip_id || !excludedIds.has(s.trip_id));
+
+  const net = computeNetPositions(keptExpenses, keptSplits, keptSettlements);
   return {
     net,
-    pairwise: computePairwiseBalances(expenses, splits, settlements),
+    pairwise: computePairwiseBalances(keptExpenses, keptSplits, keptSettlements),
     simplified: simplifyDebts(net)
   };
 }

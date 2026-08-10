@@ -150,12 +150,13 @@ export async function render(container) {
                     const my = tripNet.get(me.id) || 0;
                     const tripUnsettled = [...tripNet.values()].some((cents) => cents !== 0);
                     const maybeCovered =
-                      groupSettledCents > 0 && trip.status === 'open' && tripUnsettled;
+                      groupSettledCents > 0 && trip.status === 'open' && tripUnsettled && !trip.excluded;
                     return `<a class="row" href="#/trips/${trip.id}">
                       <div>
                         <div class="row-title">${escapeHtml(trip.name)}</div>
                         <div class="row-sub">
                           <span class="badge ${trip.status === 'settled' ? 'settled' : ''}">${trip.status}</span>
+                          ${trip.excluded ? '<span class="badge">excluded</span>' : ''}
                           ${maybeCovered ? '<span class="covered-note">group payments may cover part of this</span>' : ''}
                         </div>
                       </div>

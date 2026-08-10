@@ -1,4 +1,4 @@
-import { getTrip, settleTrip, reopenTrip } from '../repo/trips.js';
+import { getTrip, settleTrip, reopenTrip, setTripExcluded } from '../repo/trips.js';
 import { getGroup, getMainGroupId } from '../repo/groups.js';
 import { listExpensesOfTrip, deleteExpense } from '../repo/expenses.js';
 import { listSettlementsForTrip, listGroupLevelSettlements, deleteSettlement } from '../repo/settlements.js';
@@ -47,7 +47,10 @@ export async function render(container, { tripId }) {
   const groupSettledCents = (await listGroupLevelSettlements(trip.group_id))
     .reduce((sum, s) => sum + s.amount_cents, 0);
   const tripUnsettled = [...net.values()].some((cents) => cents !== 0);
-  const maybeCovered = groupSettledCents > 0 && !settled && tripUnsettled;
+  const excluded = !!trip.excluded;
+  // An excluded trip is out of the group ledger, so group payments cannot be
+  // covering it -- that note would be misinformation here.
+  const maybeCovered = groupSettledCents > 0 && !settled && tripUnsettled && !excluded;
 
   container.innerHTML = `
     <div class="topbar">
@@ -88,10 +91,21 @@ export async function render(container, { tripId }) {
               </p>`
             : ''
         }
+        ${
+          excluded
+            ? `<p id="excluded-note" style="color:var(--text-dim); font-size:12px; font-style:italic; margin:10px 0 0;">
+                Excluded from the group balance &mdash; this trip's numbers don't count
+                toward ${escapeHtml(group.name)}.
+              </p>`
+            : ''
+        }
         <div class="btn-row" style="margin-top:14px;">
           <button class="btn secondary" id="settle-up-btn">Settle up</button>
           ${!settled ? '<button class="btn ghost" id="mark-settled-btn">Mark settled</button>' : ''}
         </div>
+        <button class="btn ghost" id="exclude-btn" style="margin-top:10px; width:100%;">
+          ${excluded ? 'Include in group balance' : 'Exclude from group balance'}
+        </button>
       </div>
 
       <div>
@@ -180,6 +194,12 @@ export async function render(container, { tripId }) {
         }
       });
     });
+  });
+
+  container.querySelector('#exclude-btn').addEventListener('click', async () => {
+    await setTripExcluded(tripId, !excluded);
+    toast(excluded ? 'Trip counts toward the group balance again' : 'Trip excluded from the group balance');
+    render(container, { tripId });
   });
 
   const markSettledBtn = container.querySelector('#mark-settled-btn');
