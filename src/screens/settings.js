@@ -1,5 +1,5 @@
 import { exportData, downloadExport, readImportFile } from '../repo/exportImport.js';
-import { encodeBackupLink, linkFitsInUrl } from '../lib/backupLink.js';
+import { encodeBackupLink, decodeBackupFragment, linkFitsInUrl } from '../lib/backupLink.js';
 import { getMetaValue, setMetaValue } from '../repo/meta.js';
 import { toast } from '../ui/helpers.js';
 import { offerImport } from '../ui/importModal.js';
@@ -49,10 +49,16 @@ export async function render(container) {
       </div>
 
       <div class="card">
-        <p style="margin-top:0;">Import a backup file from another device. <strong>Merge</strong> skips
+        <p style="margin-top:0;">Import a backup from another device. <strong>Merge</strong> skips
           anything already on this device; <strong>Replace</strong> wipes this device first.</p>
         <input type="file" id="import-file" accept="application/json" style="display:none;" />
-        <button class="btn secondary" id="import-btn">Import data</button>
+        <button class="btn secondary" id="import-btn">Import a file</button>
+        <div class="field" style="margin-top:12px;">
+          <label for="import-link">Or paste a backup link</label>
+          <input id="import-link" type="text" inputmode="url" autocomplete="off"
+            spellcheck="false" placeholder="https://&hellip;#import=&hellip;" />
+        </div>
+        <button class="btn secondary" id="import-link-btn">Import from link</button>
       </div>
 
       <p style="color:var(--text-dim); font-size:12px; text-align:center;">Schema version ${SCHEMA_VERSION}</p>
@@ -138,5 +144,28 @@ export async function render(container) {
       return;
     }
     offerImport(data, { source: 'file' });
+  });
+
+  // The escape hatch for platforms where tapping a backup link opens the
+  // browser instead of this app (iOS home-screen apps have their own storage,
+  // separate from Safari's): paste the link here and the same import offer
+  // comes up inside the app.
+  const linkInput = container.querySelector('#import-link');
+  container.querySelector('#import-link-btn').addEventListener('click', async () => {
+    const text = linkInput.value.trim();
+    if (!text) {
+      toast('Paste a backup link first');
+      linkInput.focus();
+      return;
+    }
+    let data;
+    try {
+      data = await decodeBackupFragment(text);
+    } catch (err) {
+      toast(err.message);
+      return;
+    }
+    linkInput.value = '';
+    offerImport(data, { source: 'link' });
   });
 }

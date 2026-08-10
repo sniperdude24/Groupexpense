@@ -43,8 +43,16 @@ function base64UrlToBytes(text) {
 }
 
 async function throughStream(bytes, transform) {
-  const stream = new Blob([bytes]).stream().pipeThrough(transform);
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+  // A hand-rolled one-chunk stream rather than Blob#stream(): identical in the
+  // browser, but it keeps this module runnable under test environments (jsdom)
+  // whose Blob doesn't implement stream().
+  const source = new ReadableStream({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    }
+  });
+  return new Uint8Array(await new Response(source.pipeThrough(transform)).arrayBuffer());
 }
 
 /** Export data -> full link, e.g. "https://.../#import=eNq..." */
