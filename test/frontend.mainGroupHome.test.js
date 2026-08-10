@@ -71,6 +71,7 @@ describe('home is built around the main group', () => {
 
   it('a second group lands under "Other groups", unchanged', async () => {
     await crewWithTwoTrips();
+    await new Promise((r) => setTimeout(r, 2)); // strictly later created_at
     const work = await createGroup('Work lunches');
     await createTrip({ groupId: work.id, name: 'Work lunches' });
 
@@ -84,6 +85,7 @@ describe('home is built around the main group', () => {
 
   it('archiving the main group promotes the next oldest', async () => {
     const { group } = await crewWithTwoTrips();
+    await new Promise((r) => setTimeout(r, 2)); // strictly later created_at
     const work = await createGroup('Work lunches');
     await createTrip({ groupId: work.id, name: 'Work lunches' });
     await setGroupArchived(group.id, true);

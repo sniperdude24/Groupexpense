@@ -23,7 +23,13 @@ export async function setGroupArchived(groupId, archived) {
  * group promotes the next oldest automatically.
  */
 export function pickMainGroup(groups) {
-  return [...groups].sort((a, b) => a.created_at - b.created_at)[0] ?? null;
+  // Tie-break by id: two groups created in the same millisecond would
+  // otherwise leave "main" to storage order, which can differ between reads.
+  return (
+    [...groups].sort(
+      (a, b) => a.created_at - b.created_at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+    )[0] ?? null
+  );
 }
 
 export async function getMainGroupId() {

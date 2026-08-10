@@ -6,7 +6,7 @@ import { createExpense, updateExpense, deleteExpense, getExpenseWithSplits } fro
 import { computeEvenSplit } from '../lib/splits.js';
 import { COMMON_CATEGORIES } from '../lib/categories.js';
 import { parseAmountToCents, formatCents } from '../lib/money.js';
-import { escapeHtml, toast } from '../ui/helpers.js';
+import { escapeHtml, toast, topbarNav } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
 import { navigate } from '../router.js';
 
@@ -109,7 +109,7 @@ export async function render(container, { tripId, expenseId }) {
 
     container.innerHTML = `
       <div class="topbar">
-        <a class="back-btn" href="#/trips/${tripId}">&larr;</a>
+        ${topbarNav(`/trips/${tripId}`)}
         <h1>${existing ? 'Edit expense' : 'Add expense'}</h1>
         ${existing ? '<button class="icon-btn" id="delete-expense">&#128465;</button>' : ''}
       </div>

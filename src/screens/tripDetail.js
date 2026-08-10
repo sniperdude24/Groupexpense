@@ -5,7 +5,7 @@ import { listSettlementsForTrip, listGroupLevelSettlements, deleteSettlement } f
 import { computeTripBalance } from '../repo/queries.js';
 import { getMe, listPeople } from '../repo/people.js';
 import { formatCents } from '../lib/money.js';
-import { escapeHtml, formatDate, toast } from '../ui/helpers.js';
+import { escapeHtml, formatDate, toast, topbarNav } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
 import { openGroupSettingsModal } from '../ui/groupSettingsModal.js';
 import { navigate } from '../router.js';
@@ -54,7 +54,7 @@ export async function render(container, { tripId }) {
 
   container.innerHTML = `
     <div class="topbar">
-      <a class="back-btn" href="#${backPath}">&larr;</a>
+      ${topbarNav(backPath)}
       <h1>${escapeHtml(group.name)}</h1>
       <button class="icon-btn" id="members-btn" title="Members">&#128101;</button>
       <button class="icon-btn" id="group-menu">&#8942;</button>

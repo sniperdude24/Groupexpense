@@ -3,7 +3,7 @@ import { listMembersOfGroup, addMember, removeMember, groupHasRoom } from '../re
 import { GroupFullError } from '../lib/limits.js';
 import { listPeople, createPerson } from '../repo/people.js';
 import { listTripsOfGroup } from '../repo/trips.js';
-import { escapeHtml, toast, onActivate } from '../ui/helpers.js';
+import { escapeHtml, toast, onActivate, topbarNav } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
 import { openPersonEditModal } from '../ui/personEditModal.js';
 import { navigate } from '../router.js';
@@ -20,7 +20,7 @@ export async function render(container, { groupId }) {
 
   container.innerHTML = `
     <div class="topbar">
-      <a class="back-btn" href="#${backPath}">&larr;</a>
+      ${topbarNav(backPath)}
       <h1>Members</h1>
     </div>
     <div class="screen">

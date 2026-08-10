@@ -4,7 +4,7 @@ import { listPeople } from '../repo/people.js';
 import { computeTripBalance, computeGroupBalance } from '../repo/queries.js';
 import { createSettlement } from '../repo/settlements.js';
 import { parseAmountToCents, formatCents } from '../lib/money.js';
-import { escapeHtml, toast, onActivate } from '../ui/helpers.js';
+import { escapeHtml, toast, onActivate, topbarNav } from '../ui/helpers.js';
 import { navigate } from '../router.js';
 
 export async function render(container, { tripId, groupId }) {
@@ -68,7 +68,7 @@ export async function render(container, { tripId, groupId }) {
 
     container.innerHTML = `
       <div class="topbar">
-        <a class="back-btn" href="#${backPath}">&larr;</a>
+        ${topbarNav(backPath)}
         <h1>Settle up</h1>
       </div>
       <div class="screen">

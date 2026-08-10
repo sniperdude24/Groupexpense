@@ -139,6 +139,24 @@ export async function render(container) {
 
       <div id="trips-section"></div>
 
+      <details class="card" id="howto" ${summaries.length === 0 ? 'open' : ''}>
+        <summary style="cursor:pointer; font-weight:600;">How to use Split</summary>
+        <ol style="margin:10px 0 0; padding-left:20px; color:var(--text-dim); font-size:14px; line-height:1.6;">
+          <li><strong>Start a trip</strong> with "+ New trip", then tap the &#128101; icon on it
+            to add the people who are along.</li>
+          <li><strong>Log expenses</strong> as they happen &mdash; pick who paid, uncheck anyone
+            who sat one out, or type exact amounts for uneven splits. Balances update instantly.</li>
+          <li><strong>Settle up</strong> shows the fewest payments that square everyone away.
+            Record each one as it's actually paid &mdash; choose "Whole group" for a payment
+            that isn't tied to one trip.</li>
+          <li><strong>Mark settled</strong> locks a finished trip read-only;
+            "Exclude from group balance" keeps a trip out of the group total without
+            deleting anything.</li>
+          <li><strong>Back up</strong> from Settings &mdash; share the backup link to your other
+            device or keep the file somewhere safe. Your data lives only on this phone.</li>
+        </ol>
+      </details>
+
       ${
         others.length
           ? `<div>
