@@ -6,7 +6,7 @@ import { createExpense, updateExpense, deleteExpense, getExpenseWithSplits } fro
 import { computeEvenSplit } from '../lib/splits.js';
 import { COMMON_CATEGORIES } from '../lib/categories.js';
 import { parseAmountToCents, formatCents } from '../lib/money.js';
-import { escapeHtml, toast } from '../ui/helpers.js';
+import { escapeHtml, toast, submitOnEnter } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
 import { navigate } from '../router.js';
 
@@ -273,6 +273,14 @@ export async function render(container, { tripId, expenseId }) {
         toast(err.message || 'Could not save expense');
       }
     });
+
+    submitOnEnter(
+      container.querySelector('#save-expense'),
+      container.querySelector('#f-description'),
+      container.querySelector('#f-amount'),
+      container.querySelector('#f-category'),
+      ...container.querySelectorAll('.p-amount')
+    );
 
     const deleteBtn = container.querySelector('#delete-expense');
     if (deleteBtn) {

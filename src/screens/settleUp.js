@@ -4,7 +4,7 @@ import { listPeople } from '../repo/people.js';
 import { computeTripBalance, computeGroupBalance } from '../repo/queries.js';
 import { createSettlement } from '../repo/settlements.js';
 import { parseAmountToCents, formatCents } from '../lib/money.js';
-import { escapeHtml, toast, onActivate } from '../ui/helpers.js';
+import { escapeHtml, toast, onActivate, submitOnEnter } from '../ui/helpers.js';
 import { navigate } from '../router.js';
 
 export async function render(container, { tripId, groupId }) {
@@ -167,6 +167,7 @@ export async function render(container, { tripId, groupId }) {
         toast(err.message || 'Could not record payment');
       }
     });
+    submitOnEnter(container.querySelector('#s-save'), container.querySelector('#s-amount'));
   }
 
   renderForm(simplified[0]);

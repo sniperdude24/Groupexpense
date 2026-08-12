@@ -5,7 +5,7 @@ import { computeGroupBalance, computeGroupTripSummaries } from '../repo/queries.
 import { listGroupLevelSettlements, deleteSettlement } from '../repo/settlements.js';
 import { getMe, listPeople } from '../repo/people.js';
 import { formatCents } from '../lib/money.js';
-import { escapeHtml, toast, formatDate } from '../ui/helpers.js';
+import { escapeHtml, toast, formatDate, submitOnEnter } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
 import { openGroupSettingsModal } from '../ui/groupSettingsModal.js';
 import { navigate } from '../router.js';
@@ -189,6 +189,7 @@ export async function render(container, { groupId }) {
       closeModal();
       navigate(`/trips/${trip.id}`);
     });
+    submitOnEnter(overlay.querySelector('#trip-create'), nameInput);
   });
 
   container.querySelector('#group-menu').addEventListener('click', () => {

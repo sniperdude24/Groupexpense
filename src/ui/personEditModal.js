@@ -1,7 +1,7 @@
 import { renamePerson, setPersonNote, setIsMe, listPeople } from '../repo/people.js';
 import { mergePeople, previewMerge } from '../repo/merge.js';
 import { deletePerson, previewDeletePerson } from '../repo/deletePerson.js';
-import { escapeHtml, toast, onActivate } from './helpers.js';
+import { escapeHtml, toast, onActivate, submitOnEnter } from './helpers.js';
 import { openModal, closeModal } from './modal.js';
 
 export function openPersonEditModal(person, onDone) {
@@ -39,6 +39,11 @@ export function openPersonEditModal(person, onDone) {
     closeModal();
     onDone();
   });
+  submitOnEnter(
+    overlay.querySelector('#edit-save'),
+    overlay.querySelector('#edit-name'),
+    overlay.querySelector('#edit-note')
+  );
   overlay.querySelector('#edit-merge').addEventListener('click', async () => {
     const others = (await listPeople()).filter((p) => p.id !== person.id);
     openMergePicker(person, others, onDone);

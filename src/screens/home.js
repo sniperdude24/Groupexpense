@@ -2,7 +2,7 @@ import { listGroups, createGroup } from '../repo/groups.js';
 import { createTrip, listTripsOfGroup } from '../repo/trips.js';
 import { createPerson, getMe } from '../repo/people.js';
 import { computeGroupBalance } from '../repo/queries.js';
-import { toast } from '../ui/helpers.js';
+import { toast, submitOnEnter } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
 import { groupRowHtml, wireGroupRowActions } from '../ui/groupRow.js';
 import { navigate } from '../router.js';
@@ -32,6 +32,7 @@ async function renderOnboarding(container) {
     await createPerson({ name, is_me: true });
     render(container);
   });
+  submitOnEnter(container.querySelector('#me-save'), container.querySelector('#me-name'));
 }
 
 export async function render(container) {
@@ -103,5 +104,6 @@ export async function render(container) {
       toast('Group created — add people, then start adding expenses');
       navigate(`/groups/${group.id}/members`);
     });
+    submitOnEnter(overlay.querySelector('#group-create'), nameInput);
   });
 }

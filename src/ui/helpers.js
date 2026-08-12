@@ -13,6 +13,17 @@ export function formatDate(ms) {
   return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+export function submitOnEnter(button, ...inputs) {
+  inputs.forEach((input) => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.isComposing) {
+        e.preventDefault();
+        if (!button.disabled) button.click();
+      }
+    });
+  });
+}
+
 export function onActivate(el, handler) {
   el.addEventListener('click', handler);
   el.addEventListener('keydown', (e) => {

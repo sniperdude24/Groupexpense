@@ -1,5 +1,5 @@
 import { listPeople, createPerson } from '../repo/people.js';
-import { escapeHtml, toast, onActivate } from '../ui/helpers.js';
+import { escapeHtml, toast, onActivate, submitOnEnter } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
 import { openPersonEditModal } from '../ui/personEditModal.js';
 
@@ -72,5 +72,6 @@ export async function render(container) {
       toast('Person added');
       render(container);
     });
+    submitOnEnter(overlay.querySelector('#new-create'), nameInput, overlay.querySelector('#new-note'));
   });
 }

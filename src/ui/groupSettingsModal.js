@@ -1,5 +1,5 @@
 import { renameGroup, setGroupArchived, deleteGroup, isGroupSettledUp } from '../repo/groups.js';
-import { escapeHtml, toast } from './helpers.js';
+import { escapeHtml, toast, submitOnEnter } from './helpers.js';
 import { openModal, closeModal } from './modal.js';
 import { navigate } from '../router.js';
 
@@ -25,6 +25,7 @@ export function openGroupSettingsModal(group, onRenamed) {
     closeModal();
     onRenamed();
   });
+  submitOnEnter(overlay.querySelector('#rename-save'), overlay.querySelector('#rename-input'));
   overlay.querySelector('#share-btn').addEventListener('click', () => {
     closeModal();
     navigate(`/groups/${group.id}/share`);
