@@ -75,24 +75,49 @@ describe('description quick-fill chips', () => {
   });
 });
 
-describe('category chips (existing behavior, pinned)', () => {
-  it('click fills and highlights; the same chip again clears; typing re-syncs', async () => {
+describe('the condensed form', () => {
+  it('has no category chips; the category input stands alone', async () => {
     const container = await openExpenseForm();
-    const input = container.querySelector('#f-category');
-    const chip = (name) =>
-      [...container.querySelectorAll('.category-chip')].find((c) => c.dataset.category === name);
+    expect(container.querySelectorAll('.category-chip')).toHaveLength(0);
+    expect(container.querySelector('#f-category')).toBeTruthy();
+  });
 
-    chip('Gas').click();
-    expect(input.value).toBe('Gas');
-    expect(chip('Gas').classList.contains('selected')).toBe(true);
+  it('hides the date behind an edit button until asked for', async () => {
+    const container = await openExpenseForm();
 
-    chip('Gas').click();
-    expect(input.value).toBe('');
-    expect(chip('Gas').classList.contains('selected')).toBe(false);
+    const field = container.querySelector('#date-field');
+    const button = container.querySelector('#edit-date-btn');
+    expect(field.hidden).toBe(true);
+    expect(button.hidden).toBe(false);
+    // The button shows today's date so nothing is hidden blind.
+    expect(button.textContent).toContain(container.querySelector('#f-date').value);
 
-    input.value = 'Lodging';
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    expect(chip('Lodging').classList.contains('selected')).toBe(true);
-    expect(chip('Gas').classList.contains('selected')).toBe(false);
+    button.click();
+    expect(field.hidden).toBe(false);
+    expect(button.hidden).toBe(true);
+  });
+
+  it('a date changed after revealing is what actually gets saved', async () => {
+    const container = await openExpenseForm();
+
+    container.querySelector('#f-description').value = 'Backdated dinner';
+    container.querySelector('#f-description').dispatchEvent(new Event('input', { bubbles: true }));
+    container.querySelector('#f-amount').value = '10.00';
+    container.querySelector('#f-amount').dispatchEvent(new Event('input', { bubbles: true }));
+
+    container.querySelector('#edit-date-btn').click();
+    const dateInput = container.querySelector('#f-date');
+    dateInput.value = '2026-08-01';
+    dateInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+    [...container.querySelectorAll('button')]
+      .find((b) => b.textContent.trim() === 'Add expense')
+      .click();
+    await new Promise((r) => setTimeout(r, 100));
+
+    const { db } = await import('../src/db.js');
+    const [expense] = await db.expenses.toArray();
+    expect(expense.description).toBe('Backdated dinner');
+    expect(new Date(expense.spent_at).getDate()).toBe(1);
   });
 });

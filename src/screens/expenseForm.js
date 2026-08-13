@@ -4,7 +4,6 @@ import { listMembersOfGroup } from '../repo/memberships.js';
 import { listPeople } from '../repo/people.js';
 import { createExpense, updateExpense, deleteExpense, getExpenseWithSplits } from '../repo/expenses.js';
 import { computeEvenSplit } from '../lib/splits.js';
-import { COMMON_CATEGORIES } from '../lib/categories.js';
 import { DESCRIPTION_QUICK_FILLS, quickFillDescription } from '../lib/quickFill.js';
 import { parseAmountToCents, formatCents } from '../lib/money.js';
 import { escapeHtml, toast, topbarNav } from '../ui/helpers.js';
@@ -134,18 +133,16 @@ export async function render(container, { tripId, expenseId }) {
             ${people.map((p) => `<option value="${p.id}" ${p.id === state.payerId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
           </select>
         </div>
-        <div class="field">
+        <div class="field" id="date-field" hidden>
           <label for="f-date">Date</label>
           <input id="f-date" type="date" value="${state.spentAtStr}" />
         </div>
+        <button type="button" class="chip" id="edit-date-btn">
+          Date: <span id="date-btn-value">${state.spentAtStr}</span> &#9998;
+        </button>
         <div class="field">
           <label for="f-category">Category (optional)</label>
           <input id="f-category" type="text" value="${escapeHtml(state.category)}" placeholder="e.g. Food" autocomplete="off" />
-          <div class="category-chips">
-            ${COMMON_CATEGORIES.map(
-              (c) => `<button type="button" class="chip category-chip ${state.category === c ? 'selected' : ''}" data-category="${escapeHtml(c)}">${escapeHtml(c)}</button>`
-            ).join('')}
-          </div>
         </div>
 
         <div>
@@ -226,24 +223,17 @@ export async function render(container, { tripId, expenseId }) {
       state.spentAtStr = e.target.value;
     });
 
-    function syncCategoryChips() {
-      container.querySelectorAll('.category-chip').forEach((chip) => {
-        chip.classList.toggle('selected', chip.dataset.category === state.category);
-      });
-    }
-
     container.querySelector('#f-category').addEventListener('input', (e) => {
       state.category = e.target.value;
-      syncCategoryChips();
     });
 
-    container.querySelectorAll('.category-chip').forEach((chip) => {
-      chip.addEventListener('click', () => {
-        const categoryInput = container.querySelector('#f-category');
-        state.category = state.category === chip.dataset.category ? '' : chip.dataset.category;
-        categoryInput.value = state.category;
-        syncCategoryChips();
-      });
+    // The date defaults to today (or the expense's own date when editing) and
+    // is rarely changed, so the input hides behind a compact button until
+    // it's actually wanted.
+    container.querySelector('#edit-date-btn').addEventListener('click', () => {
+      container.querySelector('#date-field').hidden = false;
+      container.querySelector('#edit-date-btn').hidden = true;
+      container.querySelector('#f-date').focus();
     });
 
     container.querySelectorAll('.p-include').forEach((cb) => {

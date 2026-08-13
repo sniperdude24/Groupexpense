@@ -200,6 +200,9 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--accent);
 }
 
+/* The hidden attribute must win even over display rules like .field's flex. */
+[hidden] { display: none !important; }
+
 .field { display: flex; flex-direction: column; gap: 0; margin-bottom: 14px; }
 
 .split-row {
