@@ -5,6 +5,7 @@ import { listPeople } from '../repo/people.js';
 import { createExpense, updateExpense, deleteExpense, getExpenseWithSplits } from '../repo/expenses.js';
 import { computeEvenSplit } from '../lib/splits.js';
 import { COMMON_CATEGORIES } from '../lib/categories.js';
+import { DESCRIPTION_QUICK_FILLS, quickFillDescription } from '../lib/quickFill.js';
 import { parseAmountToCents, formatCents } from '../lib/money.js';
 import { escapeHtml, toast, topbarNav } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
@@ -117,6 +118,11 @@ export async function render(container, { tripId, expenseId }) {
         <div class="field">
           <label for="f-description">Description</label>
           <input id="f-description" type="text" value="${escapeHtml(state.description)}" placeholder="e.g. Dinner" autocomplete="off" />
+          <div class="category-chips">
+            ${DESCRIPTION_QUICK_FILLS.map(
+              (l) => `<button type="button" class="chip desc-chip" data-label="${escapeHtml(l)}">${escapeHtml(l)}</button>`
+            ).join('')}
+          </div>
         </div>
         <div class="field">
           <label for="f-amount">Amount</label>
@@ -192,6 +198,18 @@ export async function render(container, { tripId, expenseId }) {
     container.querySelector('#f-description').addEventListener('input', (e) => {
       state.description = e.target.value;
       updateSplitUI();
+    });
+
+    // No selected state on these, unlike the category chips: the timestamp is
+    // taken at the moment of the tap, so every tap is a fresh overwrite and a
+    // toggle would have nothing stable to toggle.
+    container.querySelectorAll('.desc-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const input = container.querySelector('#f-description');
+        state.description = quickFillDescription(chip.dataset.label);
+        input.value = state.description;
+        updateSplitUI();
+      });
     });
 
     container.querySelector('#f-amount').addEventListener('input', (e) => {
