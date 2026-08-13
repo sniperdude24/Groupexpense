@@ -13,6 +13,8 @@
  * arrive at the same import screen.
  */
 
+import { packShare, unpackShare } from './sharePack.js';
+
 export const FRAGMENT_PREFIX = '#import=';
 
 /**
@@ -64,7 +66,7 @@ async function throughStream(bytes, transform) {
 }
 
 async function encodeLink(data, baseUrl, prefix) {
-  const json = new TextEncoder().encode(JSON.stringify(data));
+  const json = new TextEncoder().encode(JSON.stringify(packShare(data)));
   const deflated = await throughStream(json, new CompressionStream('deflate'));
   return `${baseUrl}${prefix}${bytesToBase64Url(deflated)}`;
 }
@@ -78,7 +80,8 @@ async function decodeFragment(fragment, prefix, kind) {
   try {
     const deflated = base64UrlToBytes(payload);
     const json = await throughStream(deflated, new DecompressionStream('deflate'));
-    return JSON.parse(new TextDecoder().decode(json));
+    // Old links carry plain payloads; unpackShare passes those through.
+    return unpackShare(JSON.parse(new TextDecoder().decode(json)));
   } catch {
     // atob, inflate and JSON.parse all throw their own flavours of noise;
     // the user-facing story is the same for each.

@@ -9,6 +9,15 @@ export async function exportData() {
   return data;
 }
 
+// The person rows an export ships, by id. is_me is who *this* device's owner
+// is; shipped as-is it would plant a second "me" on the receiving phone, so
+// every exporter strips it on the way out.
+async function loadPeopleForExport(personIds) {
+  return (await db.people.bulkGet([...personIds]))
+    .filter(Boolean)
+    .map((p) => ({ ...p, is_me: false }));
+}
+
 /**
  * Export one group's complete graph -- the group row, its memberships, every
  * person referenced anywhere in it, its trips, their expenses and splits, and
@@ -43,11 +52,7 @@ export async function exportGroup(groupId) {
     personIds.add(s.from_person);
     personIds.add(s.to_person);
   }
-  const people = (await db.people.bulkGet([...personIds]))
-    .filter(Boolean)
-    // is_me is who *this* device's owner is. Shipped as-is it would plant a
-    // second "me" on the receiving phone, so it is stripped on the way out.
-    .map((p) => ({ ...p, is_me: false }));
+  const people = await loadPeopleForExport(personIds);
 
   return {
     schema_version: SCHEMA_VERSION,
@@ -95,9 +100,7 @@ export async function exportTrip(tripId) {
     await db.memberships.where('group_id').equals(trip.group_id).toArray()
   ).filter((m) => personIds.has(m.person_id));
 
-  const people = (await db.people.bulkGet([...personIds]))
-    .filter(Boolean)
-    .map((p) => ({ ...p, is_me: false }));
+  const people = await loadPeopleForExport(personIds);
 
   return {
     schema_version: SCHEMA_VERSION,
@@ -135,9 +138,7 @@ export async function exportExpense(expenseId) {
         .filter((m) => personIds.has(m.person_id))
     : [];
 
-  const people = (await db.people.bulkGet([...personIds]))
-    .filter(Boolean)
-    .map((p) => ({ ...p, is_me: false }));
+  const people = await loadPeopleForExport(personIds);
 
   return {
     schema_version: SCHEMA_VERSION,

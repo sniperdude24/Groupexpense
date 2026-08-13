@@ -19,6 +19,8 @@
  * loudly instead of assembling a corrupt half-and-half payload.
  */
 
+import { packShare, unpackShare } from './sharePack.js';
+
 const MAGIC = 'SPLITQR';
 const VERSION = 1;
 
@@ -63,7 +65,7 @@ function fromBase64(text) {
 
 /** Encode a JSON-serialisable payload into an ordered list of frame strings. */
 export async function encodeTransfer(payload) {
-  const compressed = await gzip(new TextEncoder().encode(JSON.stringify(payload)));
+  const compressed = await gzip(new TextEncoder().encode(JSON.stringify(packShare(payload))));
   const base64 = toBase64(compressed);
   const transferId = Math.random().toString(36).slice(2, 8);
 
@@ -151,7 +153,8 @@ export class FrameCollector {
       throw new Error('The scanned codes did not assemble into a valid share -- start over.');
     }
     try {
-      return JSON.parse(new TextDecoder().decode(bytes));
+      // Old senders ship plain payloads; unpackShare passes those through.
+      return unpackShare(JSON.parse(new TextDecoder().decode(bytes)));
     } catch {
       throw new Error('The scanned codes did not assemble into a valid share -- start over.');
     }
