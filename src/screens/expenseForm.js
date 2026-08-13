@@ -5,8 +5,9 @@ import { listPeople } from '../repo/people.js';
 import { createExpense, updateExpense, deleteExpense, getExpenseWithSplits } from '../repo/expenses.js';
 import { computeEvenSplit } from '../lib/splits.js';
 import { COMMON_CATEGORIES } from '../lib/categories.js';
+import { QUICK_DESCRIPTIONS } from '../lib/quickDescriptions.js';
 import { parseAmountToCents, formatCents } from '../lib/money.js';
-import { escapeHtml, toast, submitOnEnter } from '../ui/helpers.js';
+import { escapeHtml, toast, submitOnEnter, formatDateTime } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
 import { navigate } from '../router.js';
 
@@ -117,6 +118,11 @@ export async function render(container, { tripId, expenseId }) {
         <div class="field">
           <label for="f-description">Description</label>
           <input id="f-description" type="text" value="${escapeHtml(state.description)}" placeholder="e.g. Dinner" autocomplete="off" />
+          <div class="category-chips description-chips">
+            ${QUICK_DESCRIPTIONS.map(
+              (label) => `<button type="button" class="chip description-chip" data-label="${escapeHtml(label)}">${escapeHtml(label)}</button>`
+            ).join('')}
+          </div>
         </div>
         <div class="field">
           <label for="f-amount">Amount</label>
@@ -192,6 +198,15 @@ export async function render(container, { tripId, expenseId }) {
     container.querySelector('#f-description').addEventListener('input', (e) => {
       state.description = e.target.value;
       updateSplitUI();
+    });
+
+    container.querySelectorAll('.description-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const value = `${chip.dataset.label}: ${formatDateTime(Date.now())}`;
+        state.description = value;
+        container.querySelector('#f-description').value = value;
+        updateSplitUI();
+      });
     });
 
     container.querySelector('#f-amount').addEventListener('input', (e) => {
