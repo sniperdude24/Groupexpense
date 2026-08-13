@@ -146,6 +146,8 @@ export async function previewShare(payload) {
   const newGroupIds = new Set(newRows.groups.map((g) => g.id));
   const groupName = async (id) =>
     (payload.groups ?? []).find((g) => g.id === id)?.name ?? (await db.groups.get(id))?.name ?? '?';
+  const tripById = async (id) =>
+    (payload.trips ?? []).find((t) => t.id === id) ?? (await db.trips.get(id));
 
   const newTrips = [];
   for (const trip of newRows.trips) {
@@ -157,11 +159,32 @@ export async function previewShare(payload) {
     });
   }
 
+  // The master copy is the authority on its own group: every new expense
+  // aimed at a group this device holds as origin 'created' is offered for
+  // individual approval instead of riding a bulk accept.
+  const approvals = [];
+  const approvalIds = new Set();
+  for (const e of newRows.expenses) {
+    const trip = await tripById(e.trip_id);
+    if (!trip) continue;
+    const localGroup = await db.groups.get(trip.group_id);
+    if (localGroup?.origin !== 'created') continue;
+    approvals.push({
+      id: e.id,
+      groupName: localGroup.name,
+      tripName: trip.name,
+      description: e.description,
+      amount_cents: e.amount_cents
+    });
+    approvalIds.add(e.id);
+  }
+
   // Additions aimed at trips already on this device -- the case the user
-  // must not be able to miss.
+  // must not be able to miss. Expenses already offered for individual
+  // approval are left out so they aren't reported twice.
   const byExistingTrip = new Map();
   for (const e of newRows.expenses) {
-    if (newTripIds.has(e.trip_id)) continue;
+    if (newTripIds.has(e.trip_id) || approvalIds.has(e.id)) continue;
     const entry = byExistingTrip.get(e.trip_id) ?? { expenses: 0, settlements: 0 };
     entry.expenses += 1;
     byExistingTrip.set(e.trip_id, entry);
@@ -183,6 +206,31 @@ export async function previewShare(payload) {
     newTrips,
     newPeople: newRows.people.map((p) => p.name),
     existingTripAdditions,
+    approvals,
     totalNewRows: Object.values(newRows).reduce((sum, rows) => sum + rows.length, 0)
   };
+}
+
+/**
+ * The payload minus the expenses the user rejected on the approval list.
+ * Their splits go with them -- an orphan split aimed at nothing (or worse,
+ * at a local expense) is exactly the corruption validateShare guards
+ * against -- and a payload trip whose expenses were all rejected is dropped
+ * too, so refusing everything doesn't leave empty husk trips behind.
+ */
+export function filterAcceptedShare(payload, rejectedExpenseIds) {
+  const rejected = new Set(rejectedExpenseIds);
+  if (rejected.size === 0) return payload;
+
+  const expenses = (payload.expenses ?? []).filter((e) => !rejected.has(e.id));
+  const splits = (payload.splits ?? []).filter((s) => !rejected.has(s.expense_id));
+
+  const keptTripIds = new Set(expenses.map((e) => e.trip_id));
+  for (const s of payload.settlements ?? []) {
+    if (s.trip_id != null) keptTripIds.add(s.trip_id); // a payment still needs its trip
+  }
+  const hadExpenses = new Set((payload.expenses ?? []).map((e) => e.trip_id));
+  const trips = (payload.trips ?? []).filter((t) => !hadExpenses.has(t.id) || keptTripIds.has(t.id));
+
+  return { ...payload, trips, expenses, splits };
 }

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { resetDb } from './helpers.js';
-import { createGroup } from '../src/repo/groups.js';
+import { createGroup, setGroupOrigin } from '../src/repo/groups.js';
 import { createPerson, setIsMe } from '../src/repo/people.js';
 import { createTrip } from '../src/repo/trips.js';
 import { addMember } from '../src/repo/memberships.js';
@@ -75,8 +75,9 @@ describe('the receive confirmation sheet', () => {
     expect(document.getElementById('toast')?.textContent).toMatch(/Share received/);
   });
 
-  it('an addition aimed at an existing trip is called out in the sheet', async () => {
+  it('on a copy, an addition aimed at an existing trip is called out in red, with no checkboxes', async () => {
     const { crew, boise, ana, ben, share } = await crewShare();
+    await setGroupOrigin(crew.id, 'received'); // this device holds a copy
     share.expenses = [...share.expenses, {
       id: 'their-extra', trip_id: boise.id, payer_id: ana.id,
       amount_cents: 700, description: 'Their extra', spent_at: Date.now(), created_at: Date.now()
@@ -88,7 +89,83 @@ describe('the receive confirmation sheet', () => {
     const overlay = document.getElementById('modal-overlay');
     expect(overlay.textContent.replace(/\s+/g, ' ')).toContain('Adds to your existing trip boise: 1 expense');
     expect(overlay.textContent).not.toContain('New group');
+    expect(overlay.querySelector('.rx-approve')).toBeNull();
     expect(crew.id).toBeTruthy();
+  });
+
+  it('on the master, each incoming expense gets its own checkbox with trip and cost', async () => {
+    const { boise, ana, ben, share } = await crewShare();
+    share.expenses = [...share.expenses,
+      { id: 'x-1', trip_id: boise.id, payer_id: ana.id, amount_cents: 700, description: 'Their taco', spent_at: Date.now(), created_at: Date.now() },
+      { id: 'x-2', trip_id: boise.id, payer_id: ana.id, amount_cents: 12500, description: 'Their hotel', spent_at: Date.now(), created_at: Date.now() }
+    ];
+    share.splits = [...share.splits,
+      { id: 'sx-1', expense_id: 'x-1', person_id: ben.id, share_cents: 700 },
+      { id: 'sx-2', expense_id: 'x-2', person_id: ben.id, share_cents: 12500 }
+    ];
+    const validated = await validateShare(share);
+
+    await offerReceivedShare(validated, {});
+    const overlay = document.getElementById('modal-overlay');
+    const boxes = [...overlay.querySelectorAll('.rx-approve')];
+    expect(boxes).toHaveLength(2);
+    expect(boxes.every((cb) => cb.checked)).toBe(true);
+    const approvalsText = overlay.querySelector('#rx-approvals').textContent.replace(/\s+/g, ' ');
+    expect(approvalsText).toContain('Crew › boise');
+    expect(approvalsText).toContain('Their taco');
+    expect(approvalsText).toContain('$7.00');
+    expect(approvalsText).toContain('Their hotel');
+    expect(approvalsText).toContain('$125.00');
+    expect(overlay.querySelector('#rx-accept').textContent).toContain('Add checked to my ledger');
+  });
+
+  it('unchecking an expense keeps it (and its splits) out of the ledger', async () => {
+    const { boise, ana, ben, share } = await crewShare();
+    share.expenses = [...share.expenses,
+      { id: 'x-1', trip_id: boise.id, payer_id: ana.id, amount_cents: 700, description: 'Their taco', spent_at: Date.now(), created_at: Date.now() },
+      { id: 'x-2', trip_id: boise.id, payer_id: ana.id, amount_cents: 12500, description: 'Their hotel', spent_at: Date.now(), created_at: Date.now() }
+    ];
+    share.splits = [...share.splits,
+      { id: 'sx-1', expense_id: 'x-1', person_id: ben.id, share_cents: 700 },
+      { id: 'sx-2', expense_id: 'x-2', person_id: ben.id, share_cents: 12500 }
+    ];
+    const validated = await validateShare(share);
+    const before = await counts();
+
+    let outcome = null;
+    await offerReceivedShare(validated, { onDone: (o) => (outcome = o) });
+    const overlay = document.getElementById('modal-overlay');
+    overlay.querySelector('.rx-approve[data-id="x-2"]').checked = false;
+    overlay.querySelector('#rx-accept').click();
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(outcome).toBe('added');
+    const after = await counts();
+    expect(after.expenses).toBe(before.expenses + 1); // taco yes, hotel no
+    expect(after.splits).toBe(before.splits + 1);
+    expect(await db.expenses.get('x-1')).toBeTruthy();
+    expect(await db.expenses.get('x-2')).toBeUndefined();
+    expect(await db.splits.get('sx-2')).toBeUndefined();
+  });
+
+  it('unchecking everything still lands nothing but the benign rows', async () => {
+    const { boise, ana, ben, share } = await crewShare();
+    share.expenses = [...share.expenses,
+      { id: 'x-1', trip_id: boise.id, payer_id: ana.id, amount_cents: 700, description: 'Their taco', spent_at: Date.now(), created_at: Date.now() }
+    ];
+    share.splits = [...share.splits, { id: 'sx-1', expense_id: 'x-1', person_id: ben.id, share_cents: 700 }];
+    const validated = await validateShare(share);
+    const before = await counts();
+
+    await offerReceivedShare(validated, {});
+    const overlay = document.getElementById('modal-overlay');
+    overlay.querySelector('.rx-approve[data-id="x-1"]').checked = false;
+    overlay.querySelector('#rx-accept').click();
+    await new Promise((r) => setTimeout(r, 100));
+
+    const after = await counts();
+    expect(after.expenses).toBe(before.expenses);
+    expect(after.splits).toBe(before.splits);
   });
 
   it('a share with nothing new collapses to Already up to date', async () => {

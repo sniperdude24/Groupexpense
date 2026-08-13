@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { resetDb } from './helpers.js';
-import { createGroup } from '../src/repo/groups.js';
+import { createGroup, setGroupOrigin } from '../src/repo/groups.js';
 import { createPerson, setIsMe } from '../src/repo/people.js';
 import { createTrip } from '../src/repo/trips.js';
 import { addMember } from '../src/repo/memberships.js';
@@ -92,10 +92,13 @@ describe('exportExpense', () => {
   });
 
   it('on a device that already has the trip, previews as an existing-trip addition and merges only the expense', async () => {
-    const { boise, ana, ben, dinner } = await tripWithTwoExpenses();
+    const { crew, boise, ana, ben, dinner } = await tripWithTwoExpenses();
     const dump = await exportExpense(dinner.id);
 
-    // The receiving phone: same group/trip/people, but not the dinner.
+    // The receiving phone: same group/trip/people, but not the dinner --
+    // and it holds a copy, so the aggregate red line (not the master's
+    // per-expense approval list) is what previews.
+    await setGroupOrigin(crew.id, 'received');
     await db.expenses.delete(dinner.id);
     await db.splits.where('expense_id').equals(dinner.id).delete();
 

@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { resetDb } from './helpers.js';
-import { createGroup } from '../src/repo/groups.js';
+import { createGroup, setGroupOrigin } from '../src/repo/groups.js';
 import { createPerson, setIsMe } from '../src/repo/people.js';
 import { createTrip } from '../src/repo/trips.js';
 import { addMember } from '../src/repo/memberships.js';
 import { createExpense } from '../src/repo/expenses.js';
 import { createSettlement } from '../src/repo/settlements.js';
 import { exportGroup, exportTrip, importData } from '../src/repo/exportImport.js';
-import { validateShare, previewShare } from '../src/repo/incomingShare.js';
+import { validateShare, previewShare, filterAcceptedShare } from '../src/repo/incomingShare.js';
 import { computeEvenSplit } from '../src/lib/splits.js';
 import { MAX_ENTRY_AMOUNT_CENTS } from '../src/lib/limits.js';
 import { db } from '../src/db.js';
@@ -154,8 +154,9 @@ describe('previewShare', () => {
     expect(preview.totalNewRows).toBeGreaterThan(0);
   });
 
-  it('calls out additions aimed at an existing trip', async () => {
+  it('calls out additions aimed at an existing trip (on a copy: no approvals)', async () => {
     const { crew, boise, ana, ben } = await crewWithTrip();
+    await setGroupOrigin(crew.id, 'received'); // this device holds a copy
     const share = await exportGroup(crew.id);
     // The sender has one expense and one payment we don't have, on OUR trip.
     share.expenses = [...share.expenses, {
@@ -172,6 +173,87 @@ describe('previewShare', () => {
     const preview = await previewShare(share);
     expect(preview.newGroups).toHaveLength(0);
     expect(preview.existingTripAdditions).toEqual([{ name: 'boise', expenses: 1, settlements: 1 }]);
+    expect(preview.approvals).toHaveLength(0);
+  });
+
+  it('offers each expense for approval when this device holds the master copy', async () => {
+    const { crew, boise, ana, ben } = await crewWithTrip();
+    const share = await exportGroup(crew.id);
+    share.expenses = [...share.expenses, {
+      id: 'new-expense', trip_id: boise.id, payer_id: ana.id,
+      amount_cents: 700, description: 'Their extra', spent_at: Date.now(), created_at: Date.now()
+    }];
+    share.splits = [...share.splits, { id: 'new-split', expense_id: 'new-expense', person_id: ben.id, share_cents: 700 }];
+
+    const preview = await previewShare(await validateShare(share));
+    expect(preview.approvals).toEqual([{
+      id: 'new-expense', groupName: 'Crew', tripName: 'boise',
+      description: 'Their extra', amount_cents: 700
+    }]);
+    // Not double-reported as an aggregate red line.
+    expect(preview.existingTripAdditions).toHaveLength(0);
+  });
+});
+
+describe('filterAcceptedShare', () => {
+  it('rejecting an expense drops its splits too, and the rest still validates', async () => {
+    const { crew, boise, ana, ben } = await crewWithTrip();
+    const share = await exportGroup(crew.id);
+    share.expenses = [...share.expenses, {
+      id: 'e-a', trip_id: boise.id, payer_id: ana.id,
+      amount_cents: 700, description: 'A', spent_at: Date.now(), created_at: Date.now()
+    }, {
+      id: 'e-b', trip_id: boise.id, payer_id: ana.id,
+      amount_cents: 900, description: 'B', spent_at: Date.now(), created_at: Date.now()
+    }];
+    share.splits = [...share.splits,
+      { id: 's-a', expense_id: 'e-a', person_id: ben.id, share_cents: 700 },
+      { id: 's-b', expense_id: 'e-b', person_id: ben.id, share_cents: 900 }
+    ];
+    const validated = await validateShare(share);
+
+    const filtered = filterAcceptedShare(validated, ['e-a']);
+    expect(filtered.expenses.map((e) => e.id)).not.toContain('e-a');
+    expect(filtered.expenses.map((e) => e.id)).toContain('e-b');
+    expect(filtered.splits.map((s) => s.id)).not.toContain('s-a');
+    expect(filtered.splits.map((s) => s.id)).toContain('s-b');
+    // No orphan splits: the filtered payload passes the same gate.
+    await expect(validateShare(filtered)).resolves.toBeTruthy();
+
+    // Rejecting nothing hands back the payload untouched.
+    expect(filterAcceptedShare(validated, [])).toBe(validated);
+  });
+
+  it('a new trip whose every expense was rejected is dropped; one with a payment stays', async () => {
+    const { crew, ana, ben } = await crewWithTrip();
+    const share = await exportGroup(crew.id);
+    share.trips = [...share.trips,
+      { id: 'trip-x', group_id: crew.id, name: 'husk', status: 'open', created_at: Date.now() },
+      { id: 'trip-y', group_id: crew.id, name: 'paid', status: 'open', created_at: Date.now() }
+    ];
+    share.expenses = [...share.expenses, {
+      id: 'e-x', trip_id: 'trip-x', payer_id: ana.id,
+      amount_cents: 500, description: 'X', spent_at: Date.now(), created_at: Date.now()
+    }, {
+      id: 'e-y', trip_id: 'trip-y', payer_id: ana.id,
+      amount_cents: 600, description: 'Y', spent_at: Date.now(), created_at: Date.now()
+    }];
+    share.splits = [...share.splits,
+      { id: 's-x', expense_id: 'e-x', person_id: ben.id, share_cents: 500 },
+      { id: 's-y', expense_id: 'e-y', person_id: ben.id, share_cents: 600 }
+    ];
+    share.settlements = [...share.settlements, {
+      id: 'pay-y', group_id: crew.id, trip_id: 'trip-y',
+      from_person: ben.id, to_person: ana.id, amount_cents: 100, settled_at: Date.now()
+    }];
+    const validated = await validateShare(share);
+
+    const filtered = filterAcceptedShare(validated, ['e-x', 'e-y']);
+    // trip-x came only for its now-rejected expense: gone. trip-y still
+    // carries a payment: kept, so the settlement doesn't dangle.
+    expect(filtered.trips.map((t) => t.id)).not.toContain('trip-x');
+    expect(filtered.trips.map((t) => t.id)).toContain('trip-y');
+    await expect(validateShare(filtered)).resolves.toBeTruthy();
   });
 
   it('reports nothing new for a share we already have', async () => {

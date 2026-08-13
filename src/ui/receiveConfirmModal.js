@@ -1,7 +1,8 @@
 import { importData } from '../repo/exportImport.js';
-import { previewShare } from '../repo/incomingShare.js';
+import { previewShare, filterAcceptedShare } from '../repo/incomingShare.js';
 import { openModal, closeModal } from './modal.js';
 import { escapeHtml, toast } from './helpers.js';
+import { formatCents } from '../lib/money.js';
 import { navigate } from '../router.js';
 
 /**
@@ -52,17 +53,51 @@ export async function offerReceivedShare(payload, { onDone } = {}) {
     lines.push(`New people: ${preview.newPeople.map((n) => escapeHtml(n)).join(', ')}`);
   }
 
+  // This phone holds the master copy of the group these expenses target, so
+  // each one is approved on its own line rather than riding a bulk accept.
+  // Grouped under "group › trip" headings, checked by default.
+  let approvalsHtml = '';
+  if (preview.approvals.length) {
+    const byHeading = new Map();
+    for (const a of preview.approvals) {
+      const heading = `${escapeHtml(a.groupName)} &rsaquo; ${escapeHtml(a.tripName)}`;
+      if (!byHeading.has(heading)) byHeading.set(heading, []);
+      byHeading.get(heading).push(a);
+    }
+    approvalsHtml = `
+      <div id="rx-approvals" style="margin:0 0 6px;">
+        <div class="section-title" style="margin-bottom:6px;">Approve each expense</div>
+        ${[...byHeading.entries()]
+          .map(
+            ([heading, items]) => `
+              <div style="color:var(--text-dim); font-size:12px; margin:6px 0 2px;">${heading}</div>
+              ${items
+                .map(
+                  (a) => `
+                    <label style="display:flex; align-items:center; gap:8px; font-size:14px; padding:4px 0; cursor:pointer;">
+                      <input type="checkbox" class="rx-approve" data-id="${escapeHtml(a.id)}" checked />
+                      <span style="flex:1;">${escapeHtml(a.description)}</span>
+                      <span class="amount">${formatCents(a.amount_cents)}</span>
+                    </label>`
+                )
+                .join('')}`
+          )
+          .join('')}
+      </div>`;
+  }
+
   openModal(`
     <h2>Add this share?</h2>
     <ul style="color:var(--text-dim); font-size:14px; margin:0 0 6px; padding-left:18px; line-height:1.6;">
       ${lines.map((l) => `<li>${l}</li>`).join('')}
     </ul>
+    ${approvalsHtml}
     <p style="color:var(--text-dim); font-size:13px;">
       Nothing already on this device changes &mdash; adding can only add.
     </p>
     <div class="btn-row">
       <button class="btn secondary" id="rx-cancel">Cancel</button>
-      <button class="btn" id="rx-accept">Add to my ledger</button>
+      <button class="btn" id="rx-accept">${preview.approvals.length ? 'Add checked to my ledger' : 'Add to my ledger'}</button>
     </div>
   `);
 
@@ -73,7 +108,11 @@ export async function offerReceivedShare(payload, { onDone } = {}) {
   });
   overlay.querySelector('#rx-accept').addEventListener('click', async () => {
     try {
-      const summary = await importData(payload, { mode: 'merge' });
+      const rejectedIds = [...overlay.querySelectorAll('.rx-approve')]
+        .filter((cb) => !cb.checked)
+        .map((cb) => cb.dataset.id);
+      const accepted = filterAcceptedShare(payload, rejectedIds);
+      const summary = await importData(accepted, { mode: 'merge' });
       const added = Object.values(summary).reduce((s, t) => s + t.imported, 0);
       closeModal();
       toast(`Share received — ${added} new record${added === 1 ? '' : 's'}`);
