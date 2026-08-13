@@ -12,7 +12,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "dexie": "^4.0.10"
+    "dexie": "^4.0.10",
+    "jsqr": "^1.4.0",
+    "qrcode-generator": "^2.0.4"
   },
   "devDependencies": {
     "fake-indexeddb": "^6.2.5",

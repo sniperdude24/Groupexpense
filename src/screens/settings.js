@@ -61,6 +61,7 @@ export async function render(container) {
             spellcheck="false" placeholder="https://&hellip;#import=&hellip;" />
         </div>
         <button class="btn secondary" id="import-link-btn">Import from link</button>
+        <button class="btn secondary" id="scan-qr-btn" style="margin-top:12px;">Scan from another phone</button>
       </div>
 
       <div class="card">
@@ -154,6 +155,8 @@ export async function render(container) {
     }
     offerImport(data, { source: 'file' });
   });
+
+  container.querySelector('#scan-qr-btn').addEventListener('click', () => navigate('/receive'));
 
   // The escape hatch for platforms where tapping a backup link opens the
   // browser instead of this app (iOS home-screen apps have their own storage,

@@ -112,6 +112,40 @@ body {
 .row-sub { color: var(--text-dim); font-size: 13px; margin-top: 2px; }
 .covered-note { margin-left: 6px; font-style: italic; font-size: 12px; }
 
+/* QR share/receive. The frame stays white in every theme -- a dark-mode QR
+   is a coin flip for the scanning camera. */
+.qr-frame {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px;
+  box-sizing: border-box;
+}
+.rx-video {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #000;
+}
+.rx-track {
+  width: 100%;
+  max-width: 320px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border, #333);
+  overflow: hidden;
+}
+.rx-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+
 .amount { font-variant-numeric: tabular-nums; font-weight: 600; }
 .amount.positive { color: var(--positive); }
 .amount.negative { color: var(--negative); }

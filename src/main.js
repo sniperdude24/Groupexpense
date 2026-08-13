@@ -14,6 +14,8 @@ import { render as renderSettleUp } from './screens/settleUp.js';
 import { render as renderPeople } from './screens/people.js';
 import { render as renderSettings } from './screens/settings.js';
 import { render as renderArchived } from './screens/archived.js';
+import { render as renderShare } from './screens/shareGroup.js';
+import { render as renderReceiveShare } from './screens/receiveShare.js';
 
 registerSW({ immediate: true });
 
@@ -21,6 +23,9 @@ registerRoute('/', renderHome);
 registerRoute('/groups/:groupId', renderGroupDetail);
 registerRoute('/groups/:groupId/members', renderMembers);
 registerRoute('/groups/:groupId/settle', renderSettleUp);
+registerRoute('/groups/:groupId/share', renderShare);
+registerRoute('/trips/:tripId/share', renderShare);
+registerRoute('/receive', renderReceiveShare);
 registerRoute('/trips/:tripId', renderTripDetail);
 registerRoute('/trips/:tripId/settle', renderSettleUp);
 registerRoute('/trips/:tripId/expenses/new', renderExpenseForm);

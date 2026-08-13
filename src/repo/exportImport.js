@@ -9,6 +9,109 @@ export async function exportData() {
   return data;
 }
 
+/**
+ * Export one group's complete graph -- the group row, its memberships, every
+ * person referenced anywhere in it, its trips, their expenses and splits, and
+ * the group's settlements. Same top-level shape as a full export, so
+ * importData() on the receiving device consumes it unchanged; merge mode plus
+ * UUID ids means re-sharing the same group later just fills in whatever the
+ * other phone doesn't have yet.
+ */
+export async function exportGroup(groupId) {
+  const group = await db.groups.get(groupId);
+  if (!group) throw new Error('Group not found');
+
+  const memberships = await db.memberships.where('group_id').equals(groupId).toArray();
+  const trips = await db.trips.where('group_id').equals(groupId).toArray();
+  const tripIds = trips.map((t) => t.id);
+  const expenses = tripIds.length
+    ? await db.expenses.where('trip_id').anyOf(tripIds).toArray()
+    : [];
+  const expenseIds = expenses.map((e) => e.id);
+  const splits = expenseIds.length
+    ? await db.splits.where('expense_id').anyOf(expenseIds).toArray()
+    : [];
+  const settlements = await db.settlements.where('group_id').equals(groupId).toArray();
+
+  // Everyone the graph mentions, not just current members -- a person who
+  // left the group can still be on old expenses, and the receiving device
+  // needs their row to show those.
+  const personIds = new Set(memberships.map((m) => m.person_id));
+  for (const e of expenses) personIds.add(e.payer_id);
+  for (const s of splits) personIds.add(s.person_id);
+  for (const s of settlements) {
+    personIds.add(s.from_person);
+    personIds.add(s.to_person);
+  }
+  const people = (await db.people.bulkGet([...personIds]))
+    .filter(Boolean)
+    // is_me is who *this* device's owner is. Shipped as-is it would plant a
+    // second "me" on the receiving phone, so it is stripped on the way out.
+    .map((p) => ({ ...p, is_me: false }));
+
+  return {
+    schema_version: SCHEMA_VERSION,
+    exported_at: Date.now(),
+    groups: [group],
+    people,
+    memberships,
+    trips,
+    expenses,
+    splits,
+    settlements
+  };
+}
+
+/**
+ * Export a single trip's graph: the group row (a trip can't exist without
+ * it), that trip only, its expenses and splits, and its trip-scoped
+ * settlements. Group-level payments stay out -- they belong to the whole
+ * group, not this trip. Memberships ride along only for the people included,
+ * so the receiving group has members without dragging in people who never
+ * touched this trip.
+ */
+export async function exportTrip(tripId) {
+  const trip = await db.trips.get(tripId);
+  if (!trip) throw new Error('Trip not found');
+  const group = await db.groups.get(trip.group_id);
+
+  const expenses = await db.expenses.where('trip_id').equals(tripId).toArray();
+  const expenseIds = expenses.map((e) => e.id);
+  const splits = expenseIds.length
+    ? await db.splits.where('expense_id').anyOf(expenseIds).toArray()
+    : [];
+  const settlements = (
+    await db.settlements.where('group_id').equals(trip.group_id).toArray()
+  ).filter((s) => s.trip_id === tripId);
+
+  const personIds = new Set();
+  for (const e of expenses) personIds.add(e.payer_id);
+  for (const s of splits) personIds.add(s.person_id);
+  for (const s of settlements) {
+    personIds.add(s.from_person);
+    personIds.add(s.to_person);
+  }
+  const memberships = (
+    await db.memberships.where('group_id').equals(trip.group_id).toArray()
+  ).filter((m) => personIds.has(m.person_id));
+
+  const people = (await db.people.bulkGet([...personIds]))
+    .filter(Boolean)
+    .map((p) => ({ ...p, is_me: false }));
+
+  return {
+    schema_version: SCHEMA_VERSION,
+    exported_at: Date.now(),
+    groups: group ? [group] : [],
+    people,
+    memberships,
+    trips: [trip],
+    expenses,
+    splits,
+    settlements
+  };
+}
+
 export async function importData(data, { mode = 'merge' } = {}) {
   if (!data || typeof data !== 'object') throw new Error('Invalid import file');
   if (data.schema_version !== SCHEMA_VERSION) {

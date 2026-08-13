@@ -166,7 +166,8 @@ export async function render(container) {
           : ''
       }
 
-      <div style="display:flex; justify-content:center; gap:18px;">
+      <div style="display:flex; justify-content:center; gap:18px; flex-wrap:wrap;">
+        <a class="nav-link" href="#/receive">Receive a share</a>
         <a class="nav-link" href="#" id="new-group-link">New group</a>
         <a class="nav-link" href="#/archived">Archived groups</a>
       </div>

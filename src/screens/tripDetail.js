@@ -106,6 +106,9 @@ export async function render(container, { tripId }) {
         <button class="btn ghost" id="exclude-btn" style="margin-top:10px; width:100%;">
           ${excluded ? 'Include in group balance' : 'Exclude from group balance'}
         </button>
+        <button class="btn ghost" id="share-trip-btn" style="margin-top:10px; width:100%;">
+          Share this trip to another phone&hellip;
+        </button>
       </div>
 
       <div>
@@ -195,6 +198,8 @@ export async function render(container, { tripId }) {
       });
     });
   });
+
+  container.querySelector('#share-trip-btn').addEventListener('click', () => navigate(`/trips/${tripId}/share`));
 
   container.querySelector('#exclude-btn').addEventListener('click', async () => {
     await setTripExcluded(tripId, !excluded);
