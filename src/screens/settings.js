@@ -1,8 +1,10 @@
 import { exportData, downloadExport, readImportFile } from '../repo/exportImport.js';
 import { encodeBackupLink, decodeBackupFragment, linkFitsInUrl } from '../lib/backupLink.js';
-import { getMetaValue, setMetaValue } from '../repo/meta.js';
+import { getMetaValue, setMetaValue, resetAllData } from '../repo/meta.js';
 import { toast } from '../ui/helpers.js';
 import { offerImport } from '../ui/importModal.js';
+import { openModal, closeModal } from '../ui/modal.js';
+import { navigate } from '../router.js';
 import { SCHEMA_VERSION } from '../db.js';
 
 function describeLastBackup(timestamp) {
@@ -59,6 +61,13 @@ export async function render(container) {
             spellcheck="false" placeholder="https://&hellip;#import=&hellip;" />
         </div>
         <button class="btn secondary" id="import-link-btn">Import from link</button>
+      </div>
+
+      <div class="card">
+        <p style="margin-top:0;">Reset wipes this device back to a fresh install &mdash; every group,
+          trip, expense, person and payment, gone permanently. Share a backup first if there's any
+          chance you'll want this data again.</p>
+        <button class="btn danger" id="reset-btn">Reset app&hellip;</button>
       </div>
 
       <p style="color:var(--text-dim); font-size:12px; text-align:center;">Schema version ${SCHEMA_VERSION}</p>
@@ -167,5 +176,46 @@ export async function render(container) {
     }
     linkInput.value = '';
     offerImport(data, { source: 'link' });
+  });
+
+  // A full wipe earns more friction than one tap: the modal spells out that
+  // it is permanent and irreversible, and the erase button stays disabled
+  // until the user types RESET -- a deliberate act, not a slipped thumb.
+  container.querySelector('#reset-btn').addEventListener('click', () => {
+    openModal(`
+      <h2>Erase everything?</h2>
+      <p style="color:var(--negative); font-size:14px;">
+        This permanently deletes every group, trip, expense, person and payment on this
+        device. It cannot be undone and there is no way to recover the data afterwards.
+      </p>
+      <p style="color:var(--text-dim); font-size:13px;">
+        If you might ever want this data again, cancel and use Share backup first.
+      </p>
+      <div class="field">
+        <label for="reset-confirm-input">Type RESET to confirm</label>
+        <input id="reset-confirm-input" type="text" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="btn-row">
+        <button class="btn secondary" id="reset-cancel">Cancel</button>
+        <button class="btn danger" id="reset-confirm" disabled>Erase everything</button>
+      </div>
+    `);
+    const overlay = document.getElementById('modal-overlay');
+    overlay.querySelector('#reset-cancel').addEventListener('click', closeModal);
+
+    const input = overlay.querySelector('#reset-confirm-input');
+    const confirmBtn = overlay.querySelector('#reset-confirm');
+    input.addEventListener('input', () => {
+      confirmBtn.disabled = input.value.trim() !== 'RESET';
+    });
+    input.focus();
+
+    confirmBtn.addEventListener('click', async () => {
+      if (confirmBtn.disabled) return;
+      await resetAllData();
+      closeModal();
+      toast('Everything erased — starting fresh');
+      navigate('/');
+    });
   });
 }
