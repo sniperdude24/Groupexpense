@@ -18,7 +18,11 @@
  * importing nothing.
  */
 
-const PACK_VERSION = 2;
+// v3 added per-row presence masks: v2 unioned each table's keys and
+// materialized missing ones as null, which silently turned "field absent"
+// into "field null" on the receiving device. v2 payloads still decode.
+const PACK_VERSION = 3;
+const LEGACY_PACK_VERSION = 2;
 
 const TABLES = ['groups', 'people', 'memberships', 'trips', 'expenses', 'splits', 'settlements'];
 
@@ -60,17 +64,32 @@ export function packShare(data) {
       t[table] = [];
       continue;
     }
-    // Rows from the exporters are homogeneous, so one key row describes all.
+    // One key row describes the table; each value row leads with a presence
+    // bitmask over those keys, so a key a row never had stays absent after
+    // unpacking instead of coming back as null.
     const keys = [...new Set(rows.flatMap((r) => Object.keys(r)))];
-    t[table] = [keys, ...rows.map((r) => keys.map((k) => (isIdField(k) ? ref(r[k]) : r[k] ?? null)))];
+    t[table] = [
+      keys,
+      ...rows.map((r) => {
+        let mask = 0;
+        const values = [];
+        keys.forEach((k, i) => {
+          if (!Object.prototype.hasOwnProperty.call(r, k)) return;
+          mask |= 1 << i;
+          values.push(isIdField(k) ? ref(r[k]) : r[k] ?? null);
+        });
+        return [mask, ...values];
+      })
+    ];
   }
 
   return { ...rest, v: PACK_VERSION, s: data.schema_version, ids: ids.join(''), t };
 }
 
-/** A v2 wrapper -> the original payload; anything else passes through untouched. */
+/** A packed wrapper (v3 or legacy v2) -> the original payload; anything else passes through untouched. */
 export function unpackShare(parsed) {
-  if (!parsed || typeof parsed !== 'object' || parsed.v !== PACK_VERSION) return parsed;
+  if (!parsed || typeof parsed !== 'object') return parsed;
+  if (parsed.v !== PACK_VERSION && parsed.v !== LEGACY_PACK_VERSION) return parsed;
   if (typeof parsed.ids !== 'string' || !parsed.t || typeof parsed.t !== 'object') return parsed;
 
   const ids = [];
@@ -94,9 +113,20 @@ export function unpackShare(parsed) {
     const [keys, ...rows] = packed;
     data[table] = rows.map((values) => {
       const row = {};
-      keys.forEach((k, i) => {
-        row[k] = isIdField(k) ? deref(values[i]) : values[i];
-      });
+      if (parsed.v === LEGACY_PACK_VERSION) {
+        // v2 rows are full-length; a key the row never had arrives as null.
+        keys.forEach((k, i) => {
+          row[k] = isIdField(k) ? deref(values[i]) : values[i];
+        });
+      } else {
+        const [mask, ...present] = values;
+        let at = 0;
+        keys.forEach((k, i) => {
+          if (!(mask & (1 << i))) return;
+          const v = present[at++];
+          row[k] = isIdField(k) ? deref(v) : v;
+        });
+      }
       return row;
     });
   }

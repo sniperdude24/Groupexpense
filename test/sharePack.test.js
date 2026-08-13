@@ -53,6 +53,46 @@ describe('packShare / unpackShare', () => {
     }
   });
 
+  it('keeps "field absent" and "field null" distinct (the v2 bug)', () => {
+    // One trip was excluded at some point; the others never had the field at
+    // all. v2's key-union materialized excluded: null onto them.
+    const payload = {
+      schema_version: 1,
+      trips: [
+        { id: 't-1', group_id: 'g-1', name: 'plain', status: 'open' },
+        { id: 't-2', group_id: 'g-1', name: 'was excluded', status: 'open', excluded: true },
+        { id: 't-3', group_id: 'g-1', name: 'null on purpose', status: 'open', excluded: null }
+      ],
+      groups: [{ id: 'g-1', name: 'Crew' }]
+    };
+    const out = unpackShare(packShare(payload));
+    expect(out).toEqual(payload);
+    expect('excluded' in out.trips[0]).toBe(false);
+    expect(out.trips[1].excluded).toBe(true);
+    expect('excluded' in out.trips[2]).toBe(true);
+    expect(out.trips[2].excluded).toBe(null);
+  });
+
+  it('still decodes a legacy v2 wrapper (full-length rows, no masks)', () => {
+    // Hand-built exactly as the v2 packer emitted: saved backup links from
+    // the v2 window must keep working.
+    const v2 = {
+      v: 2,
+      s: 1,
+      ids: '00000000000040008000000000000001',
+      t: {
+        groups: [['id', 'name', 'archived'], [0, 'Crew', false]],
+        trips: []
+      }
+    };
+    const out = unpackShare(v2);
+    expect(out).toEqual({
+      schema_version: 1,
+      groups: [{ id: '00000000-0000-4000-8000-000000000001', name: 'Crew', archived: false }],
+      trips: []
+    });
+  });
+
   it('survives non-UUID ids and non-table extras verbatim', () => {
     const payload = {
       schema_version: 1,
