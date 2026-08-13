@@ -60,6 +60,11 @@ export async function render(container, { groupId, tripId, expenseId }) {
   const frames = await encodeTransfer(payload);
   const svgs = frames.map(frameToSvg);
 
+  // Every scope ships its group row, so the local row's provenance is right
+  // here. Warn (don't block -- relaying through a middle phone is legitimate)
+  // when what's being broadcast isn't the master copy.
+  const sharingCopy = payload.groups?.[0]?.origin !== 'created';
+
   container.innerHTML = `
     <div class="topbar">
       ${topbarNav(backPath)}
@@ -83,6 +88,13 @@ export async function render(container, { groupId, tripId, expenseId }) {
         If the receiver reports missing codes, pause and step to them with the arrows.
         Sharing again later is safe &mdash; the other phone only adds what it doesn't have.
       </p>
+      ${
+        sharingCopy
+          ? `<p id="copy-warning" style="color:var(--text-dim); font-size:13px; font-style:italic; margin:0;">
+              You're sharing a copy &mdash; the master copy of this group lives on another phone.
+            </p>`
+          : ''
+      }
       <div class="card">
         <p style="margin-top:0; color:var(--text-dim); font-size:14px;">
           Not in the same room? Send this share as a link by text or any messaging app.

@@ -1,6 +1,6 @@
 import { setGroupArchived, deleteGroup, isGroupSettledUp } from '../repo/groups.js';
 import { formatCents } from '../lib/money.js';
-import { escapeHtml, toast } from './helpers.js';
+import { escapeHtml, toast, originBadge } from './helpers.js';
 import { openModal, closeModal } from './modal.js';
 
 export function balanceClass(cents) {
@@ -18,7 +18,7 @@ export function groupRowHtml({ group, mine, linkTo }) {
   return `
     <div class="row group-row">
       <a class="group-row-link" href="#${linkTo || `/groups/${group.id}`}">
-        <div class="row-title">${escapeHtml(group.name)}</div>
+        <div class="row-title">${escapeHtml(group.name)} ${originBadge(group)}</div>
         <div class="row-sub">${balanceLabel(mine)}</div>
       </a>
       <div class="row-actions">

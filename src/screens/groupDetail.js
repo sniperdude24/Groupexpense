@@ -5,7 +5,7 @@ import { computeGroupBalance, computeGroupTripSummaries } from '../repo/queries.
 import { listGroupLevelSettlements, deleteSettlement } from '../repo/settlements.js';
 import { getMe, listPeople } from '../repo/people.js';
 import { formatCents } from '../lib/money.js';
-import { escapeHtml, toast, formatDate } from '../ui/helpers.js';
+import { escapeHtml, toast, formatDate, originBadge } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
 import { openGroupSettingsModal } from '../ui/groupSettingsModal.js';
 import { navigate } from '../router.js';
@@ -43,7 +43,7 @@ export async function render(container, { groupId }) {
   container.innerHTML = `
     <div class="topbar">
       <a class="back-btn" href="#/">&larr;</a>
-      <h1>${escapeHtml(group.name)}</h1>
+      <h1>${escapeHtml(group.name)} ${originBadge(group)}</h1>
       <button class="icon-btn" id="group-menu">&#8942;</button>
     </div>
     <div class="screen">

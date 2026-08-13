@@ -62,9 +62,13 @@ export async function validateShare(payload) {
   const tripIds = new Set([...localTripIds, ...data.trips.map((t) => t.id)]);
   const payloadExpenseIds = new Set(data.expenses.map((e) => e.id));
 
-  for (const g of data.groups) {
+  // A received group is by definition a copy -- the master copy lives on
+  // whichever device created it. Rewritten here, next to the is_me strip,
+  // no matter what the sender's row claimed.
+  const groups = data.groups.map((g) => {
     if (!isNonEmptyString(g.name)) bad('This share is malformed (a group has no name).');
-  }
+    return { ...g, origin: 'received' };
+  });
   // is_me is who THIS device's owner is. The sender strips it, but a crafted
   // payload could lie -- so the receiver strips it again, trusting no one.
   const people = data.people.map((p) => {
@@ -123,7 +127,7 @@ export async function validateShare(payload) {
     if (!isMoney(s.amount_cents)) bad('This share contains an invalid payment amount.');
   }
 
-  return { ...payload, ...data, people };
+  return { ...payload, ...data, groups, people };
 }
 
 /**

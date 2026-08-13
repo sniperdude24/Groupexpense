@@ -6,10 +6,11 @@ import { createTrip } from '../src/repo/trips.js';
 import { addMember } from '../src/repo/memberships.js';
 import { createExpense } from '../src/repo/expenses.js';
 import { createSettlement } from '../src/repo/settlements.js';
-import { exportGroup, exportTrip } from '../src/repo/exportImport.js';
+import { exportGroup, exportTrip, importData } from '../src/repo/exportImport.js';
 import { validateShare, previewShare } from '../src/repo/incomingShare.js';
 import { computeEvenSplit } from '../src/lib/splits.js';
 import { MAX_ENTRY_AMOUNT_CENTS } from '../src/lib/limits.js';
+import { db } from '../src/db.js';
 
 beforeEach(resetDb);
 
@@ -58,6 +59,26 @@ describe('validateShare accepts what the app itself produces', () => {
 
     const validated = await validateShare(share);
     expect(validated.people.every((p) => p.is_me === false)).toBe(true);
+  });
+
+  it('rewrites every incoming group to a copy, whatever origin the sender claimed', async () => {
+    const { crew } = await crewWithTrip();
+    const share = await exportGroup(crew.id);
+    // A crafted payload claiming to BE the master.
+    share.groups = share.groups.map((g) => ({ ...g, origin: 'created' }));
+
+    const validated = await validateShare(share);
+    expect(validated.groups.every((g) => g.origin === 'received')).toBe(true);
+  });
+
+  it('a re-share back to the master leaves its own row marked created', async () => {
+    const { crew } = await crewWithTrip();
+    expect((await db.groups.get(crew.id)).origin).toBe('created');
+
+    const share = await exportGroup(crew.id);
+    const validated = await validateShare(share);
+    await importData(validated, { mode: 'merge' }); // insert-only: our row wins
+    expect((await db.groups.get(crew.id)).origin).toBe('created');
   });
 });
 

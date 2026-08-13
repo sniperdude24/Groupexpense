@@ -3,9 +3,23 @@ import { newId, now } from '../lib/util.js';
 import { computeGroupBalance } from './queries.js';
 
 export async function createGroup(name) {
-  const group = { id: newId(), name, created_at: now(), archived: false };
+  // origin marks provenance: the device that creates a group holds its
+  // master copy; the share gate rewrites incoming groups to 'received'.
+  const group = { id: newId(), name, created_at: now(), archived: false, origin: 'created' };
   await db.groups.add(group);
   return group;
+}
+
+/**
+ * Claim or demote a group's master-copy status by hand. Exists for groups
+ * made before origin tracking (their rows carry no origin at all) and as
+ * the escape hatch when the label is simply wrong.
+ */
+export async function setGroupOrigin(groupId, origin) {
+  if (origin !== 'created' && origin !== 'received') {
+    throw new Error(`Unknown group origin: ${origin}`);
+  }
+  await db.groups.update(groupId, { origin });
 }
 
 export async function renameGroup(groupId, name) {

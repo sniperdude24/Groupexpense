@@ -161,6 +161,7 @@ body {
   border: 1px solid var(--border);
 }
 .badge.settled { color: var(--accent); border-color: var(--accent-dim); }
+.badge.master { color: var(--accent); border-color: var(--accent-dim); }
 
 .empty {
   color: var(--text-dim);

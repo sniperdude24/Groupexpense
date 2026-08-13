@@ -20,6 +20,18 @@ export function topbarNav(backPath) {
     : `${back}<a class="back-btn" href="#/" title="Home" aria-label="Home">&#127968;</a>`;
 }
 
+/**
+ * The provenance chip for a group row. The device that created a group holds
+ * its master copy; anything that arrived through a share is a copy. Groups
+ * from before origin tracking have no origin field and show as copies until
+ * their real master claims them in group settings.
+ */
+export function originBadge(group) {
+  return group?.origin === 'created'
+    ? '<span class="badge master">Master copy</span>'
+    : '<span class="badge">Copy</span>';
+}
+
 export function formatDate(ms) {
   if (!ms) return '';
   return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });

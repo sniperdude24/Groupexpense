@@ -4,7 +4,7 @@ import { createPerson, getMe } from '../repo/people.js';
 import { computeGroupBalance, computeGroupTripSummaries } from '../repo/queries.js';
 import { listGroupLevelSettlements } from '../repo/settlements.js';
 import { formatCents } from '../lib/money.js';
-import { escapeHtml, toast } from '../ui/helpers.js';
+import { escapeHtml, toast, originBadge } from '../ui/helpers.js';
 import { openModal, closeModal } from '../ui/modal.js';
 import { groupRowHtml, wireGroupRowActions, balanceClass, balanceLabel } from '../ui/groupRow.js';
 import { navigate } from '../router.js';
@@ -127,7 +127,7 @@ export async function render(container) {
         style="display:block; text-decoration:none; color:inherit;">
         <div class="section-title" style="margin-bottom:6px;">Main group</div>
         <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
-          <div class="row-title" style="font-size:18px;">${escapeHtml(main.name)}</div>
+          <div class="row-title" style="font-size:18px;">${escapeHtml(main.name)} ${originBadge(main)}</div>
           <div class="amount ${balanceClass(mine)}">${mine === 0 ? '' : formatCents(Math.abs(mine))}</div>
         </div>
         <div class="row-sub">${balanceLabel(mine)}${
