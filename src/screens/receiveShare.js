@@ -1,7 +1,8 @@
 import jsQR from 'jsqr';
-import { importData } from '../repo/exportImport.js';
 import { FrameCollector } from '../lib/qrtransfer.js';
-import { toast, topbarNav } from '../ui/helpers.js';
+import { validateShare } from '../repo/incomingShare.js';
+import { offerReceivedShare } from '../ui/receiveConfirmModal.js';
+import { topbarNav } from '../ui/helpers.js';
 import { navigate } from '../router.js';
 
 /**
@@ -58,6 +59,13 @@ export async function render(container) {
   window.addEventListener('hashchange', stop, { once: true });
 
   restartBtn.addEventListener('click', () => {
+    // After a completed-but-rejected share the camera is already stopped, so
+    // an in-place reset would scan nothing -- re-render to reacquire it. A
+    // mid-scan conflict still resets in place, keeping the camera warm.
+    if (stopped) {
+      navigate('/receive');
+      return;
+    }
     collector = new FrameCollector();
     restartBtn.hidden = true;
     statusEl.textContent = 'Scanning…';
@@ -89,18 +97,21 @@ export async function render(container) {
   async function complete() {
     importing = true;
     stop();
-    statusEl.textContent = 'Importing…';
+    statusEl.textContent = 'Checking the share…';
     try {
-      const payload = await collector.assemble();
-      const summary = await importData(payload, { mode: 'merge' });
-      const added = Object.values(summary).reduce((s, t) => s + t.imported, 0);
-      const groupId = payload.groups && payload.groups[0] && payload.groups[0].id;
-      toast(
-        added === 0
-          ? 'Already up to date — nothing new in that share'
-          : `Share received — ${added} new record${added === 1 ? '' : 's'}`
-      );
-      navigate(groupId ? `/groups/${groupId}` : '/');
+      // Nothing touches the ledger yet: assemble, validate against a rogue or
+      // corrupt payload, then put a confirmation between the scan and the
+      // write. Only "Add to my ledger" imports.
+      const payload = await validateShare(await collector.assemble());
+      statusEl.textContent = 'All codes received';
+      await offerReceivedShare(payload, {
+        onDone(outcome) {
+          if (outcome === 'added') return; // navigated away already
+          // Cancelled / nothing new: re-render the screen fresh, which is
+          // the one reliable way to reacquire the camera after stop().
+          navigate('/receive');
+        }
+      });
     } catch (err) {
       statusEl.textContent = err.message;
       restartBtn.hidden = false;
