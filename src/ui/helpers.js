@@ -43,6 +43,31 @@ export function qsa(root, sel) {
   return Array.from(root.querySelectorAll(sel));
 }
 
+/**
+ * Best-available transport for a link: the share sheet, then the clipboard.
+ * Returns what happened -- 'shared' | 'copied' | 'cancelled' | 'unavailable' --
+ * so the caller decides what a fallback looks like (Settings falls through to
+ * a file; the share screens just apologise). A user-cancelled share sheet is
+ * 'cancelled', not a fallthrough: they changed their mind, nothing else
+ * should pop up.
+ */
+export async function sendLink(link, title) {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, url: link });
+      return 'shared';
+    } catch (err) {
+      if (err.name === 'AbortError') return 'cancelled';
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(link);
+    return 'copied';
+  } catch {
+    return 'unavailable';
+  }
+}
+
 let toastTimer = null;
 export function toast(message) {
   let el = document.getElementById('toast');

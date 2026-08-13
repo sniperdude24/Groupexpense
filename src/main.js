@@ -1,8 +1,13 @@
 import './style.css';
 import { registerSW } from 'virtual:pwa-register';
 import { ensureMeta } from './repo/meta.js';
-import { decodeBackupFragment, FRAGMENT_PREFIX } from './lib/backupLink.js';
+import {
+  decodeBackupFragment, decodeShareFragment,
+  FRAGMENT_PREFIX, SHARE_FRAGMENT_PREFIX
+} from './lib/backupLink.js';
 import { offerImport } from './ui/importModal.js';
+import { validateShare } from './repo/incomingShare.js';
+import { offerReceivedShare } from './ui/receiveConfirmModal.js';
 import { toast } from './ui/helpers.js';
 import { startRouter, registerRoute, navigate } from './router.js';
 import { render as renderHome } from './screens/home.js';
@@ -43,11 +48,14 @@ async function boot() {
   // asking on every boot until granted.
   navigator.storage?.persist?.().catch(() => {});
 
-  // A "#import=..." fragment means someone opened a backup link. Capture it
-  // and put a normal route in its place *before* the router starts, so the
-  // payload never hits route matching and a reload won't re-offer the import.
+  // A "#import=..." or "#share=..." fragment means someone opened a backup or
+  // share link. Capture it and put a normal route in its place *before* the
+  // router starts, so the payload never hits route matching and a reload
+  // won't re-offer the import.
   const capturedFragment = () => {
-    if (!location.hash.startsWith(FRAGMENT_PREFIX)) return null;
+    if (!location.hash.startsWith(FRAGMENT_PREFIX) && !location.hash.startsWith(SHARE_FRAGMENT_PREFIX)) {
+      return null;
+    }
     const fragment = location.hash;
     history.replaceState(null, '', location.pathname + '#/');
     return fragment;
@@ -55,7 +63,14 @@ async function boot() {
 
   const offerFromFragment = async (fragment) => {
     try {
-      offerImport(await decodeBackupFragment(fragment), { source: 'link' });
+      if (fragment.startsWith(SHARE_FRAGMENT_PREFIX)) {
+        // A share link is someone else's data: validate it and gate it behind
+        // the same confirmation sheet as a QR receive -- never the backup
+        // importer, whose Replace button must stay out of strangers' reach.
+        offerReceivedShare(await validateShare(await decodeShareFragment(fragment)), {});
+      } else {
+        offerImport(await decodeBackupFragment(fragment), { source: 'link' });
+      }
     } catch (err) {
       toast(err.message);
     }

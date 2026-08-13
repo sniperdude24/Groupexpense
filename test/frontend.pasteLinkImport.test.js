@@ -79,6 +79,6 @@ describe('paste-a-link import on Settings', () => {
     await new Promise((r) => setTimeout(r, 50));
 
     expect(document.getElementById('modal-overlay')).toBeNull();
-    expect(document.getElementById('toast')?.textContent).toMatch(/Paste a backup link first/);
+    expect(document.getElementById('toast')?.textContent).toMatch(/Paste a backup or share link first/);
   });
 });

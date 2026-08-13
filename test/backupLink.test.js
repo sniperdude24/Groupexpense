@@ -2,9 +2,12 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   encodeBackupLink,
   decodeBackupFragment,
+  encodeShareLink,
+  decodeShareFragment,
   linkFitsInUrl,
   LINK_MAX_CHARS,
-  FRAGMENT_PREFIX
+  FRAGMENT_PREFIX,
+  SHARE_FRAGMENT_PREFIX
 } from '../src/lib/backupLink.js';
 import { resetDb } from './helpers.js';
 import { createGroup } from '../src/repo/groups.js';
@@ -75,6 +78,28 @@ describe('the backup link codec', () => {
     const data = { schema_version: 1, expenses: rows };
     const link = await encodeBackupLink(data, BASE);
     expect(link.length).toBeLessThan(JSON.stringify(data).length / 3);
+  });
+});
+
+describe('the share link codec', () => {
+  it('round-trips a payload under its own prefix', async () => {
+    const data = { schema_version: 1, groups: [{ id: 'g1', name: 'Crew' }], expenses: [] };
+    const link = await encodeShareLink(data, BASE);
+    expect(link.startsWith(`${BASE}${SHARE_FRAGMENT_PREFIX}`)).toBe(true);
+    expect(await decodeShareFragment(new URL(link).hash)).toEqual(data);
+    expect(await decodeShareFragment(link)).toEqual(data); // whole pasted link too
+  });
+
+  it('the prefixes do not cross: each decoder refuses the other kind of link', async () => {
+    const data = { schema_version: 1, groups: [] };
+    const shareLink = await encodeShareLink(data, BASE);
+    const backupLink = await encodeBackupLink(data, BASE);
+    // Routing is decided by prefix; a mixup must fail loudly, not import
+    // someone else's share through the backup flow (or vice versa).
+    await expect(decodeBackupFragment(shareLink)).rejects.toThrow(/not a backup link/);
+    await expect(decodeShareFragment(backupLink)).rejects.toThrow(/not a share link/);
+    await expect(decodeShareFragment('#share=')).rejects.toThrow(/empty/);
+    await expect(decodeShareFragment('#share=!!!broken!!!')).rejects.toThrow(/damaged or incomplete/);
   });
 });
 

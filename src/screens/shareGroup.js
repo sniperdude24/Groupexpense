@@ -4,7 +4,8 @@ import { getTrip } from '../repo/trips.js';
 import { getExpenseWithSplits } from '../repo/expenses.js';
 import { exportGroup, exportTrip, exportExpense } from '../repo/exportImport.js';
 import { encodeTransfer } from '../lib/qrtransfer.js';
-import { escapeHtml, topbarNav } from '../ui/helpers.js';
+import { encodeShareLink, linkFitsInUrl } from '../lib/backupLink.js';
+import { escapeHtml, topbarNav, toast, sendLink } from '../ui/helpers.js';
 
 /**
  * Broadcast a group or a single trip as a rotating sequence of QR codes.
@@ -82,6 +83,13 @@ export async function render(container, { groupId, tripId, expenseId }) {
         If the receiver reports missing codes, pause and step to them with the arrows.
         Sharing again later is safe &mdash; the other phone only adds what it doesn't have.
       </p>
+      <div class="card">
+        <p style="margin-top:0; color:var(--text-dim); font-size:14px;">
+          Not in the same room? Send this share as a link by text or any messaging app.
+          Opening it lands on the same confirmation the camera does.
+        </p>
+        <button class="btn secondary" id="send-link-btn" style="width:100%;">Send as a link instead&hellip;</button>
+      </div>
     </div>
   `;
 
@@ -120,6 +128,17 @@ export async function render(container, { groupId, tripId, expenseId }) {
   pauseBtn.addEventListener('click', () => {
     paused = !paused;
     pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+  });
+
+  container.querySelector('#send-link-btn').addEventListener('click', async () => {
+    const link = await encodeShareLink(payload, location.origin + location.pathname);
+    if (!linkFitsInUrl(link)) {
+      toast('This share is too big for a link — use the QR codes.');
+      return;
+    }
+    const sent = await sendLink(link, 'Split share');
+    if (sent === 'copied') toast('Share link copied — send it however you like');
+    else if (sent === 'unavailable') toast('Sharing is not available here — use the QR codes.');
   });
 
   show(0);

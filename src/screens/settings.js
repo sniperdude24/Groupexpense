@@ -1,7 +1,12 @@
 import { exportData, downloadExport, readImportFile } from '../repo/exportImport.js';
-import { encodeBackupLink, decodeBackupFragment, linkFitsInUrl } from '../lib/backupLink.js';
+import {
+  encodeBackupLink, decodeBackupFragment, decodeShareFragment,
+  SHARE_FRAGMENT_PREFIX, linkFitsInUrl
+} from '../lib/backupLink.js';
+import { validateShare } from '../repo/incomingShare.js';
+import { offerReceivedShare } from '../ui/receiveConfirmModal.js';
 import { getMetaValue, setMetaValue, resetAllData } from '../repo/meta.js';
-import { toast } from '../ui/helpers.js';
+import { toast, sendLink } from '../ui/helpers.js';
 import { offerImport } from '../ui/importModal.js';
 import { openModal, closeModal } from '../ui/modal.js';
 import { navigate } from '../router.js';
@@ -56,7 +61,7 @@ export async function render(container) {
         <input type="file" id="import-file" accept="application/json" style="display:none;" />
         <button class="btn secondary" id="import-btn">Import a file</button>
         <div class="field" style="margin-top:12px;">
-          <label for="import-link">Or paste a backup link</label>
+          <label for="import-link">Or paste a backup or share link</label>
           <input id="import-link" type="text" inputmode="url" autocomplete="off"
             spellcheck="false" placeholder="https://&hellip;#import=&hellip;" />
         </div>
@@ -95,23 +100,14 @@ export async function render(container) {
     const link = await encodeBackupLink(data, location.origin + location.pathname);
 
     if (linkFitsInUrl(link)) {
-      if (navigator.share) {
-        try {
-          await navigator.share({ title: 'Split backup', url: link });
-          await recordBackup();
-          return;
-        } catch (err) {
-          if (err.name === 'AbortError') return;
-        }
-      }
-      try {
-        await navigator.clipboard.writeText(link);
-        toast('Backup link copied — open it on your other device');
+      const sent = await sendLink(link, 'Split backup');
+      if (sent === 'cancelled') return;
+      if (sent === 'shared' || sent === 'copied') {
+        if (sent === 'copied') toast('Backup link copied — open it on your other device');
         await recordBackup();
         return;
-      } catch {
-        // No clipboard either; fall through to the file path.
       }
+      // No share sheet and no clipboard; fall through to the file path.
     }
 
     const stamp = new Date(data.exported_at).toISOString().slice(0, 10);
@@ -166,8 +162,20 @@ export async function render(container) {
   container.querySelector('#import-link-btn').addEventListener('click', async () => {
     const text = linkInput.value.trim();
     if (!text) {
-      toast('Paste a backup link first');
+      toast('Paste a backup or share link first');
       linkInput.focus();
+      return;
+    }
+    // A share link is someone else's data: it goes through the share gate
+    // (validate + confirm, no Replace), never the backup importer.
+    if (text.includes(SHARE_FRAGMENT_PREFIX)) {
+      try {
+        const payload = await validateShare(await decodeShareFragment(text));
+        linkInput.value = '';
+        offerReceivedShare(payload, {});
+      } catch (err) {
+        toast(err.message);
+      }
       return;
     }
     let data;
