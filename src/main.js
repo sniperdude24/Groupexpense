@@ -25,6 +25,7 @@ registerRoute('/groups/:groupId/members', renderMembers);
 registerRoute('/groups/:groupId/settle', renderSettleUp);
 registerRoute('/groups/:groupId/share', renderShare);
 registerRoute('/trips/:tripId/share', renderShare);
+registerRoute('/expenses/:expenseId/share', renderShare);
 registerRoute('/receive', renderReceiveShare);
 registerRoute('/trips/:tripId', renderTripDetail);
 registerRoute('/trips/:tripId/settle', renderSettleUp);

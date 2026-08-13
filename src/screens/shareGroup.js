@@ -1,7 +1,8 @@
 import qrcode from 'qrcode-generator';
 import { getGroup } from '../repo/groups.js';
 import { getTrip } from '../repo/trips.js';
-import { exportGroup, exportTrip } from '../repo/exportImport.js';
+import { getExpenseWithSplits } from '../repo/expenses.js';
+import { exportGroup, exportTrip, exportExpense } from '../repo/exportImport.js';
 import { encodeTransfer } from '../lib/qrtransfer.js';
 import { escapeHtml, topbarNav } from '../ui/helpers.js';
 
@@ -24,9 +25,18 @@ function frameToSvg(text) {
   return qr.createSvgTag({ cellSize: 4, margin: 4, scalable: true });
 }
 
-export async function render(container, { groupId, tripId }) {
+export async function render(container, { groupId, tripId, expenseId }) {
   let title, backPath, payload;
-  if (tripId) {
+  if (expenseId) {
+    const expense = (await getExpenseWithSplits(expenseId))?.expense;
+    if (!expense) {
+      container.innerHTML = `<div class="topbar"><a class="back-btn" href="#/">&larr;</a><h1>Not found</h1></div>`;
+      return;
+    }
+    title = `Share expense &ldquo;${escapeHtml(expense.description)}&rdquo;`;
+    backPath = `/trips/${expense.trip_id}`;
+    payload = await exportExpense(expenseId);
+  } else if (tripId) {
     const trip = await getTrip(tripId);
     if (!trip) {
       container.innerHTML = `<div class="topbar"><a class="back-btn" href="#/">&larr;</a><h1>Not found</h1></div>`;

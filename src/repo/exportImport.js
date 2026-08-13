@@ -112,6 +112,46 @@ export async function exportTrip(tripId) {
   };
 }
 
+/**
+ * Export a single expense's graph: the expense and its splits, the trip and
+ * group rows they hang off (a receiving phone that lacks them needs both to
+ * have somewhere to put the expense), and only the people the expense
+ * actually mentions -- payer plus split participants. No settlements ever:
+ * payments belong to the trip or group ledger, not to one expense.
+ */
+export async function exportExpense(expenseId) {
+  const expense = await db.expenses.get(expenseId);
+  if (!expense) throw new Error('Expense not found');
+  const trip = await db.trips.get(expense.trip_id);
+  const group = trip ? await db.groups.get(trip.group_id) : null;
+
+  const splits = await db.splits.where('expense_id').equals(expenseId).toArray();
+
+  const personIds = new Set([expense.payer_id]);
+  for (const s of splits) personIds.add(s.person_id);
+
+  const memberships = trip
+    ? (await db.memberships.where('group_id').equals(trip.group_id).toArray())
+        .filter((m) => personIds.has(m.person_id))
+    : [];
+
+  const people = (await db.people.bulkGet([...personIds]))
+    .filter(Boolean)
+    .map((p) => ({ ...p, is_me: false }));
+
+  return {
+    schema_version: SCHEMA_VERSION,
+    exported_at: Date.now(),
+    groups: group ? [group] : [],
+    people,
+    memberships,
+    trips: trip ? [trip] : [],
+    expenses: [expense],
+    splits,
+    settlements: []
+  };
+}
+
 export async function importData(data, { mode = 'merge' } = {}) {
   if (!data || typeof data !== 'object') throw new Error('Invalid import file');
   if (data.schema_version !== SCHEMA_VERSION) {

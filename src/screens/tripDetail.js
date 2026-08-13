@@ -151,7 +151,10 @@ export async function render(container, { tripId }) {
                         <div class="desc">${escapeHtml(e.description)}</div>
                         <div class="sub">${payer ? escapeHtml(payer.name) : 'Unknown'} paid &middot; ${formatDate(e.spent_at)}${e.category ? ' &middot; ' + escapeHtml(e.category) : ''}</div>
                       </div>
-                      <div class="amount">${formatCents(e.amount_cents)}</div>
+                      <div style="display:flex; align-items:center; gap:10px;">
+                        <div class="amount">${formatCents(e.amount_cents)}</div>
+                        <button class="icon-btn share-expense" data-id="${e.id}" title="Share this expense">&#128228;</button>
+                      </div>
                     </a>`;
                   })
                   .join('')
@@ -200,6 +203,16 @@ export async function render(container, { tripId }) {
   });
 
   container.querySelector('#share-trip-btn').addEventListener('click', () => navigate(`/trips/${tripId}/share`));
+
+  // The share button sits inside the row's edit link; without stopping the
+  // event the tap would fall through and open the expense form instead.
+  container.querySelectorAll('.share-expense').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      navigate(`/expenses/${btn.dataset.id}/share`);
+    });
+  });
 
   container.querySelector('#exclude-btn').addEventListener('click', async () => {
     await setTripExcluded(tripId, !excluded);
